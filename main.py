@@ -1,5 +1,6 @@
 from time import *
 
+# Prints First Frame 
 def frame1():
   print("  ==================T==================")
   print("     .             |:|")
@@ -10,6 +11,7 @@ def frame1():
   print("  ::          \'--=:____:.___....-\"")
   print("                    O\"       O\" ")
 
+# Prints Second Frame 
 def frame2():
   print("  ______.........--=T=--.........______")
   print("     .             |:|")
@@ -20,12 +22,14 @@ def frame2():
   print("  ::          \'--=:____:.___....-\"")
   print("                    O\"       O\" ")
 
+# Clear Console Window
 def clearConsole():
-    command = 'clear'
-    if os.name in ('nt', 'dos'):  # If Machine is running on Windows, use cls
-        command = 'cls'
-    os.system(command)
+  command = 'clear'
+  if os.name in ('nt', 'dos'):
+      command = 'cls'
+  os.system(command)
 
+# Prints Both Frame 1000 Times 
 for x in range(1000):
   clearConsole()
   frame1()
