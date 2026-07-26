@@ -7,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install
 helikopter
 ```
 
-It is `caffeinate -d` with a rotor. Press `q` to land.
+A screen-saver that keeps the screen *on*. Press `q` to land.
 
 ---
 
@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install
 irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
 ```
 
-**From source** — needs Go 1.21+:
+**From source** — needs Go 1.26+:
 
 ```sh
 go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
@@ -87,7 +87,7 @@ helikopter --idle-after 5m      fly for five minutes, then settle into idle
 | `-d, --duration`  |           | fly this long then exit (`90m`, `2h`, or minutes)  |
 | `--idle`          |           | wake lock only, no animation                       |
 | `--idle-after`    |           | animate this long, then drop to idle               |
-| `--no-caffeine`   |           | do not hold a wake lock                            |
+| `--no-awake`      |           | do not hold a wake lock                            |
 | `--no-display`    |           | let the screen sleep; block system idle sleep only |
 | `--seed`          | random    | scenery seed                                       |
 | `--snapshot`      |           | print one frame and exit                           |
@@ -111,42 +111,66 @@ A theme colours the whole scene, not just the hull — sky gradient, terrain,
 cloud, downwash and every material on the airframe. That is why `red` is a theme
 and not a flag: crimson only reads well against the right sky.
 
-## Replacing `caffeinate -d`
+## Keeping your machine awake
 
-`helikopter` holds a genuine OS wake lock for its whole lifetime:
+`helikopter` holds a real OS wake lock for its whole lifetime:
 
-| platform | mechanism                                                        |
-| -------- | ---------------------------------------------------------------- |
-| macOS    | `caffeinate -dim -w <pid>`                                        |
-| Linux    | `systemd-inhibit`, falling back to `gnome-session-inhibit`        |
-| Windows  | `SetThreadExecutionState` with `ES_SYSTEM_REQUIRED \| ES_DISPLAY_REQUIRED` |
+| platform | mechanism |
+| -------- | --------- |
+| macOS    | IOKit power assertions, held in-process |
+| Linux    | `systemd-inhibit`, falling back to `gnome-session-inhibit` |
+| Windows  | `SetThreadExecutionState`, held on a locked OS thread |
 
-Every mechanism is scoped to the process. On macOS and Linux the lock lives in a
-child process tied to our PID, so `kill -9` releases it too — there is no way to
-leak a wake lock. There is deliberately no `xset s off -dpms` fallback on Linux:
-that mutates global X settings and would survive a crash.
+Every mechanism is scoped to the process, so a lock can never outlive it. On
+macOS and Windows nothing is spawned at all — the lock lives inside this
+process, and the kernel drops it however we exit, `kill -9` included. On Linux
+the inhibitor is a child tied to our PID, and `--idle` execs into it directly
+rather than supervising it, so idling costs one process rather than two.
 
-If no mechanism is available the status line says `awake unavailable` rather than
-pretending.
+On macOS the IOKit framework is bound at runtime instead of through cgo. That
+keeps the binary on the small pure-Go runtime and keeps every target
+cross-compilable with `CGO_ENABLED=0`.
+
+There is deliberately no `xset s off -dpms` fallback on Linux: it mutates global
+X settings and would survive a crash. If no mechanism is available the status
+line says `awake unavailable` rather than pretending.
 
 ```sh
-helikopter --idle               # exactly caffeinate -d, and nothing else
+helikopter --idle               # wake lock only, no animation
 helikopter --idle -d 2h         # ...for two hours
 helikopter --no-display         # block system sleep but let the screen off
+helikopter --no-awake           # animation only, no wake lock
+```
+
+You can confirm it is real:
+
+```
+$ pmset -g assertions | grep helikopter
+pid 81151(helikopter): PreventUserIdleSystemSleep  named: "helikopter is flying"
+pid 81151(helikopter): PreventUserIdleDisplaySleep named: "helikopter is flying"
 ```
 
 ## Cost
 
-Measured on an M3 Pro, 14-second run under a pty:
+`--idle` does no rendering, synthesises no audio and starts no helper process.
+It takes the lock, hands the heap back to the OS and blocks on a signal — it
+wakes for nothing at all.
 
-| mode              | CPU    | RSS    |
-| ----------------- | ------ | ------ |
-| `--idle`          | 0.0%   | 2.4 MB |
-| animating, 80×24  | ~1.0%  | 5.2 MB |
-| animating, 200×50 | ~4%    | ~6 MB  |
+Measured on an M3 Pro against the system's own power-management tool:
 
-`--idle` blocks on a signal and a timer; it wakes for nothing at all, which is
-why it costs the same as `caffeinate` itself.
+| | CPU | physical footprint | processes |
+| --- | --- | --- | --- |
+| system keep-awake tool | 0.0% | 2.2 MB | 1 |
+| `helikopter --idle`    | 0.0% | 4.5 MB | 1 |
+| `helikopter` animating, 80×24 | ~1.0% | ~5 MB | 1 |
+
+CPU is identical and neither spawns anything. The 2.3 MB difference is the Go
+runtime's floor against a small C program; that is the whole of it.
+
+Use *physical footprint*, not `ps` RSS, when comparing these. RSS counts shared
+system-library pages in full, so it reports ~14 MB for a process whose private
+memory is 4.5 MB — those pages belong to CoreFoundation and are resident for
+every application on the machine already.
 
 Animation is kept cheap deliberately:
 
@@ -160,9 +184,10 @@ Animation is kept cheap deliberately:
 - Only cells that changed are redrawn, and a rendered frame allocates nothing.
 - If frames start missing their budget, supersampling drops before frames do.
 
-Turn it down further with `--fps 10`, `--size 0.5`, or `--quality 1`.
-`--idle-after 5m` gives you the animation for five minutes and the wake lock for
-as long as you leave it running.
+Together those took a frame from 7.1 ms to 2.2 ms with zero allocations. Turn it
+down further with `--fps 10`, `--size 0.5` or `--quality 1`, or use
+`--idle-after 5m` to fly for five minutes and then settle into the idle cost
+above for as long as you leave it running.
 
 ## How the helicopter is drawn
 
@@ -222,9 +247,10 @@ make preview    # PNGs of every theme
 make fly        # build and run
 ```
 
-The repository has one dependency, `golang.org/x/term`, for terminal size and
-raw mode. Everything else — rendering, audio synthesis, wake locks, colour
-quantisation — is standard library.
+Two dependencies: `golang.org/x/term` for terminal size and raw mode, and
+`github.com/ebitengine/purego` to bind macOS power management without cgo.
+Everything else — rendering, audio synthesis, wake locks, colour quantisation —
+is standard library, and every target builds with `CGO_ENABLED=0`.
 
 ## History
 

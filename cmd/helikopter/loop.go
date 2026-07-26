@@ -3,8 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
+
+	"github.com/hammadsaedi/helikopter/internal/awake"
 
 	"github.com/hammadsaedi/helikopter/internal/audio"
 	"github.com/hammadsaedi/helikopter/internal/render"
@@ -294,31 +300,68 @@ func (s *state) drawIdleScreen() {
 	os.Stdout.Write(s.screen.Flush())
 }
 
-// runIdle is the no-animation path: hold the wake lock and block. Used for
-// --idle and whenever stdout is not a terminal.
-func (s *state) runIdle(sig <-chan os.Signal, total time.Duration, notTTY bool) error {
-	if s.player != nil {
-		s.player.Pause()
-	}
-
-	dur := "until interrupted"
-	if total > 0 {
-		dur = "for " + total.Round(time.Second).String()
-	}
+// runIdle is the no-animation path, used for --idle and whenever stdout is not
+// a terminal.
+//
+// Wrapping an inhibitor in a supervising Go process would cost twice the memory
+// of the inhibitor alone, so where the platform has a native one we exec into
+// it and cease to exist. Where it does not — Windows, whose wake lock is a
+// thread flag rather than a program — we hold the lock here and trim the
+// runtime down instead.
+func runIdle(o *options, total time.Duration, notTTY bool) error {
 	reason := "idle mode"
 	if notTTY {
 		reason = "not a terminal"
 	}
-	fmt.Printf("helikopter: holding this machine awake %s (%s; wake lock: %s)\n",
-		dur, reason, s.lockNote)
-	if s.lockNote == "unavailable" {
+	window := "until interrupted"
+	if total > 0 {
+		window = "for " + total.Round(time.Second).String()
+	}
+
+	if o.noWakeLock {
+		fmt.Printf("helikopter: idling %s (%s; no wake lock)\n", window, reason)
+		return waitOut(total)
+	}
+
+	opts := awake.Options{Display: !o.noDisplay}
+
+	if name, ok := awake.NativeInhibitor(opts); ok {
+		fmt.Printf("helikopter: holding this machine awake %s (%s; becoming %s)\n",
+			window, reason, name)
+		// Only returns if the exec fails, in which case fall through.
+		if err := awake.Become(opts, total); err != nil {
+			fmt.Fprintf(os.Stderr, "helikopter: could not exec %s: %v\n", name, err)
+		}
+	}
+
+	lock, err := awake.Acquire(opts)
+	if err != nil {
 		fmt.Fprintln(os.Stderr,
 			"helikopter: warning — no wake-lock mechanism available on this system")
 	}
+	defer lock.Release()
+
+	fmt.Printf("helikopter: holding this machine awake %s (%s; wake lock: %s)\n",
+		window, reason, lock.Method())
+
+	// Nothing further will allocate, so hand the heap back and stop the
+	// scheduler spreading across every core while we sit on a channel.
+	runtime.GOMAXPROCS(1)
+	debug.FreeOSMemory()
+
+	return waitOut(total)
+}
+
+// waitOut blocks until interrupted, or until the duration elapses.
+func waitOut(total time.Duration) error {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	var deadline <-chan time.Time
 	if total > 0 {
-		deadline = time.After(total)
+		t := time.NewTimer(total)
+		defer t.Stop()
+		deadline = t.C
 	}
 	select {
 	case <-sig:

@@ -44,7 +44,7 @@ type options struct {
 	idle      bool
 	idleAfter string
 
-	noCaffeine bool
+	noWakeLock bool
 	noDisplay  bool
 
 	seed     int64
@@ -103,7 +103,7 @@ func parseFlags() *options {
 	flag.StringVar(&o.idleAfter, "idle-after", "",
 		"animate for this long, then drop to --idle")
 
-	flag.BoolVar(&o.noCaffeine, "no-caffeine", false, "do not hold a wake lock")
+	flag.BoolVar(&o.noWakeLock, "no-awake", false, "do not hold a wake lock")
 	flag.BoolVar(&o.noDisplay, "no-display", false,
 		"let the display sleep; only block system idle sleep")
 
@@ -124,8 +124,8 @@ func usage() {
 usage: helikopter [flags]
 
   Runs until you press q or Ctrl-C. While it runs, the display and the system
-  are kept awake, which is what `+"`caffeinate -d`"+` does on macOS. Use --idle for the
-  same wake lock with no animation and effectively no CPU.
+  are held awake by a wake lock scoped to this process. Use --idle for the same
+  wake lock with no animation and effectively no CPU.
 
 flags:
   -t, --theme NAME     colour theme, or "random" (default "crimson")
@@ -145,7 +145,7 @@ flags:
       --idle           no animation: hold the machine awake, at rest
       --idle-after DUR animate for this long, then drop to --idle
 
-      --no-caffeine    do not hold a wake lock
+      --no-awake       do not hold a wake lock
       --no-display     let the display sleep; only block system idle sleep
 
       --seed N         scenery seed (0 = random)
@@ -203,10 +203,22 @@ func run() error {
 	tm := term.Open()
 	defer tm.Cleanup()
 
+	if o.snapshot {
+		st := &state{opts: o, theme: th, tm: tm, themeNames: names}
+		return st.renderSnapshot()
+	}
+
+	// Idle mode animates nothing and plays nothing, so it skips every bit of
+	// that setup — no soundtrack is synthesised and no supervising lock is
+	// taken — and hands off to the platform's own inhibitor instead.
+	if o.idle || !tm.IsTTY() {
+		return runIdle(o, total, !tm.IsTTY())
+	}
+
 	// A wake lock is the whole point, so take it before anything that can fail.
 	lock := awake.Noop()
 	lockNote := "off"
-	if !o.noCaffeine {
+	if !o.noWakeLock {
 		l, err := awake.Acquire(awake.Options{Display: !o.noDisplay})
 		if err != nil {
 			lockNote = "unavailable"
@@ -245,12 +257,6 @@ func run() error {
 		total:      total, idleAfter: idleAfter,
 	}
 
-	if o.snapshot {
-		return st.renderSnapshot()
-	}
-	if o.idle || !tm.IsTTY() {
-		return st.runIdle(sig, total, !tm.IsTTY())
-	}
 	return st.runAnimated(sig)
 }
 

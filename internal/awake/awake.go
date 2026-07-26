@@ -1,5 +1,8 @@
-// Package awake holds a wake lock for as long as the process runs, so
-// `helikopter` can stand in for `caffeinate -d`.
+// Package awake holds a wake lock for as long as the process runs.
+//
+// Every mechanism is scoped to this process, so a wake lock can never outlive
+// it — not even if we are killed outright. Where the platform allows it the
+// lock is held in-process, with no helper program.
 package awake
 
 import "errors"
@@ -17,8 +20,8 @@ type Lock interface {
 
 // Options controls how aggressive the lock is.
 type Options struct {
-	// Display also prevents the screen from sleeping, as `caffeinate -d` does.
-	// With it false only idle system sleep is blocked.
+	// Display also prevents the screen from sleeping. With it false, only idle
+	// system sleep is blocked.
 	Display bool
 }
 
