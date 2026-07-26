@@ -9,21 +9,6 @@ import (
 
 const horizonFrac = 0.76
 
-// The dimmest an airframe pixel may be in Minimal mode, as a fraction of full
-// brightness: enough to keep every part of the silhouette on the ramp.
-const minAirframeLum = 0.22
-
-// rampLift remaps an airframe colour into the top of the ASCII ramp, keeping
-// its hue. Without it the picture depends on how bright the theme's paint
-// happens to be: a red hull is barely a third as luminous as a white one, so
-// crimson came out as faint punctuation while mono came out crisp. The floor
-// also stops thin parts — the tail boom especially — dropping to blank and
-// breaking the silhouette.
-func rampLift(c theme.RGB) theme.RGB {
-	l := clamp(theme.Luminance(c)/0.85, 0, 1)
-	return theme.AtLuminance(c, minAirframeLum+(1-minAirframeLum)*math.Pow(l, 0.75))
-}
-
 // Scene draws the animated frame. Everything that does not change from frame to
 // frame is computed once: the sky gradient and sun are baked into a background
 // buffer, and each cloud band is a ring of pre-shaded columns that scrolls by
@@ -332,7 +317,11 @@ func (s *Scene) Render(c *Canvas, t float64) {
 	ox := int(W*(0.47+sway)) - fw/2
 	oy := int(H*(0.40+bob)) - fh/2
 
-	s.downwash(c, ox, oy, fw, fh, t)
+	if !s.Minimal {
+		// In ramp mode the wash lands as scattered speckle around the
+		// aircraft rather than as moving air.
+		s.downwash(c, ox, oy, fw, fh, t)
+	}
 	s.blitHeli(c, ox, oy)
 }
 
@@ -359,7 +348,13 @@ func (s *Scene) terrain(c *Canvas, t float64) {
 		{th.Ground, H * 0.045, 11, 26.0, 0.070, 0.00, s.Seed + 307, 2, 0.40},
 	}
 
-	for _, l := range layers {
+	for li, l := range layers {
+		// One horizon in ramp mode. Three crest lines break into dashes and
+		// read as scattered debris rather than as distance.
+		if s.Minimal && li != len(layers)-1 {
+			continue
+		}
+		prevY := -1
 		for x := 0; x < c.W; x++ {
 			n := fbm1((float64(x)+t*l.speed)/l.wl, l.seed, l.oct)
 			top := hy + l.lift*H - l.amp*n
@@ -369,16 +364,26 @@ func (s *Scene) terrain(c *Canvas, t float64) {
 			}
 
 			if s.Minimal {
-				// Just the crest: a solid block of ground would become a solid
-				// block of punctuation. The horizon reads as a line instead.
-				// A faint mass below the crest so the ground has weight,
-				// with the crest itself a step brighter.
-				for y := y0; y < c.H; y++ {
-					c.Set(x, y, theme.AtLuminance(l.col, 0.055))
+				// Just the crest: filling underneath turned the bottom third
+				// of the screen into a field of dots. Each column is bridged
+				// to the previous one so the horizon reads as a continuous
+				// line rather than a row of dashes.
+				crest := theme.AtLuminance(l.col, l.crest)
+				lo, hi := y0, y0
+				if prevY >= 0 {
+					if prevY < lo {
+						lo = prevY
+					}
+					if prevY > hi {
+						hi = prevY
+					}
 				}
-				if y0 < c.H {
-					c.Set(x, y0, theme.AtLuminance(l.col, l.crest))
+				for y := lo; y <= hi; y++ {
+					if y >= 0 && y < c.H {
+						c.Set(x, y, crest)
+					}
 				}
+				prevY = y0
 				continue
 			}
 
@@ -480,9 +485,58 @@ func (s *Scene) blitHeli(c *Canvas, ox, oy int) {
 			}
 			col := theme.Scale(th.Mat[p.Mat], p.Shade, p.Spec)
 			if s.Minimal {
-				col = rampLift(col)
+				col = rampShade(f, x, y, p, col)
 			}
 			c.Blend(ox+x, oy+y, col, a)
 		}
 	}
+}
+
+// rampShade draws the airframe as line art rather than as tone.
+//
+// Smooth shading is what makes the colour render look solid, and it is exactly
+// what a character ramp cannot carry: every lit surface saturates to the same
+// two or three dense glyphs and the aircraft reads as a blob. So outlines —
+// the silhouette and the boundaries between parts — go bright, and interiors
+// stay dim with just enough variation to suggest the form underneath.
+func rampShade(f *art.Frame, x, y int, p art.Pixel, col theme.RGB) theme.RGB {
+	if p.Mat == art.MatRotor {
+		return theme.AtLuminance(col, 0.18+0.34*p.Alpha)
+	}
+	if isOutline(f, x, y, p.Mat) {
+		return theme.AtLuminance(col, 0.98)
+	}
+	return theme.AtLuminance(col, 0.05+0.08*clamp(p.Shade/1.2, 0, 1))
+}
+
+// isOutline reports whether the pixel sits on the silhouette or on a boundary
+// between two parts of the airframe.
+func isOutline(f *art.Frame, x, y int, mat art.Material) bool {
+	// Window frames, pillars and panel lines are one or two pixels wide at
+	// terminal resolution. Outlining them puts a bright mark on both sides of
+	// every one and the aircraft fills in solid, so they are not boundaries.
+	if mat == art.MatFrame {
+		return false
+	}
+	g := art.Group(mat)
+	for _, d := range [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+		n := f.At(x+d[0], y+d[1])
+		if n.Mat == art.MatFrame {
+			continue
+		}
+		ng := art.Group(n.Mat)
+		if ng == g {
+			continue
+		}
+		// The rotor sweeps across the airframe; treating it as a boundary
+		// would outline the whole disc, differently, every frame.
+		if ng == art.Group(art.MatRotor) && n.Alpha < 0.9 {
+			continue
+		}
+		if n.Mat == art.MatNone && n.Alpha < 0.5 {
+			return true // silhouette
+		}
+		return true // a different part of the aircraft
+	}
+	return false
 }

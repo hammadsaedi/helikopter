@@ -124,3 +124,32 @@ func TestNoColourStillProducesStructure(t *testing.T) {
 		t.Error("nothing is blank; the picture has no negative space")
 	}
 }
+
+// Painting our own background in ramp mode leaves the terminal's window
+// padding showing in its default colour, which reads as a border around the
+// picture. Half blocks still need one — it is half of how they draw.
+func TestRampModeDoesNotPaintABackground(t *testing.T) {
+	sc := NewScreen(80, 24, StyleASCII, theme.ModeTrue)
+	s := rampScene(t, "crimson")
+	s.Render(sc.Canvas(), 2.5)
+	if got := countBg(sc.Flush()); got != 0 {
+		t.Errorf("ramp mode emitted %d background escapes, want 0", got)
+	}
+
+	hb := NewScreen(80, 24, StyleHalfBlock, theme.ModeTrue)
+	h := &Scene{Theme: s.Theme, Seed: 3, Size: 0.78, Super: 1}
+	h.Render(hb.Canvas(), 2.5)
+	if got := countBg(hb.Flush()); got == 0 {
+		t.Error("half-block mode must paint a background")
+	}
+}
+
+func countBg(b []byte) int {
+	n, needle := 0, []byte("\x1b[48;")
+	for i := 0; i+len(needle) <= len(b); i++ {
+		if string(b[i:i+len(needle)]) == string(needle) {
+			n++
+		}
+	}
+	return n
+}

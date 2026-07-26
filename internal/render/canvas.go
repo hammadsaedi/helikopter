@@ -235,7 +235,13 @@ func (s *Screen) Flush() []byte {
 					s.buf.Write(s.esc)
 					curFg, haveFg = c.fg, true
 				}
-				if s.style == StyleHalfBlock || c.glyph == ' ' {
+				// Half blocks need a background: it is half the picture.
+				// The ramp does not — it draws with glyphs — and painting one
+				// is actively harmful. Filling the screen with our own black
+				// leaves the terminal's window padding showing in its default
+				// colour, which reads as a mismatched border around the
+				// picture. Leaving the background alone lets the two match.
+				if s.style == StyleHalfBlock {
 					if !haveBg || c.bg != curBg {
 						s.esc = theme.AppendBg(s.esc[:0], c.bg, s.mode)
 						s.buf.Write(s.esc)

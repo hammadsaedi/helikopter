@@ -33,6 +33,30 @@ const (
 	MatCount
 )
 
+// Group buckets materials into the parts a viewer would name. Line-art
+// rendering outlines boundaries between groups, so panel lines, window frames
+// and louvres do not each get an outline of their own and fill the aircraft in.
+func Group(m Material) uint8 {
+	switch m {
+	case MatNone:
+		return 0
+	case MatHull, MatBelly, MatEngine, MatFin, MatFrame:
+		return 1
+	case MatCanopy:
+		return 2
+	case MatSkid:
+		return 3
+	case MatRotor:
+		return 4
+	case MatHub:
+		return 5
+	case MatExhaust:
+		return 6
+	default:
+		return 7 // navigation lights
+	}
+}
+
 // Pixel is one sample of the airframe. Alpha is coverage, which is fractional
 // at silhouette edges (from supersampling) and along the rotor disc (from
 // motion blur), so the compositor can blend it against the sky.
