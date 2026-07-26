@@ -112,3 +112,34 @@ func TestScaleClamps(t *testing.T) {
 		t.Errorf("Scale should clamp to black, got %v", got)
 	}
 }
+
+// Line art picks glyphs by brightness, so AtLuminance has to actually reach
+// the brightness it is asked for. Scaling the channels cannot: crimson clips
+// at 255 and lands well short, which made a red aircraft render several ramp
+// steps darker than a white one.
+func TestAtLuminanceHitsItsTarget(t *testing.T) {
+	colours := []RGB{
+		{198, 32, 38},  // saturated red, the case that broke
+		{72, 240, 236}, // cyan
+		{236, 236, 236},
+		{26, 26, 26},
+		{0, 0, 0},
+		{255, 255, 255},
+	}
+	for _, c := range colours {
+		for _, target := range []float64{0.05, 0.17, 0.4, 0.75, 0.98, 1} {
+			got := Luminance(AtLuminance(c, target))
+			if diff := got - target; diff > 0.02 || diff < -0.02 {
+				t.Errorf("AtLuminance(%v, %.2f) has luminance %.3f", c, target, got)
+			}
+		}
+	}
+}
+
+func TestAtLuminanceKeepsHueDirection(t *testing.T) {
+	// Brightening blends toward white, so red must stay the dominant channel.
+	got := AtLuminance(RGB{198, 32, 38}, 0.9)
+	if got.R <= got.G || got.R <= got.B {
+		t.Errorf("brightened red lost its hue: %v", got)
+	}
+}

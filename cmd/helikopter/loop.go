@@ -444,8 +444,12 @@ func (s *state) infoSegs(elapsed time.Duration) [][]seg {
 	case s.paused:
 		stateWord = "paused"
 	}
+	name := th.UIKey
+	if s.style == render.StyleASCII {
+		name = th.UIText
+	}
 	return [][]seg{
-		{{" helikopter ", th.UIKey}},
+		{{" helikopter ", name}},
 		{{"· ", th.UIDim}, {th.Name + " ", th.UIText}},
 		{{"· " + stateWord + " ", th.UIDim}, {fmtDur(elapsed) + " ", th.UIText}},
 		{{"· awake ", th.UIDim}, {s.awakeNote + " ", th.UIText}},
@@ -457,8 +461,13 @@ func (s *state) infoSegs(elapsed time.Duration) [][]seg {
 // keeps as many as will fit.
 func (s *state) keySegs() [][][]seg {
 	th := s.theme
-	k := func(key, label string) []seg {
-		return []seg{{key, th.UIKey}, {" " + label, th.UIDim}}
+	key := th.UIKey
+	if s.style == render.StyleASCII {
+		// Match the drawing: two tones from the palette, no accent hue.
+		key = th.UIText
+	}
+	k := func(k2, label string) []seg {
+		return []seg{{k2, key}, {" " + label, th.UIDim}}
 	}
 	sep := seg{" · ", th.UIDim}
 
@@ -516,7 +525,12 @@ func (s *state) line(left [][]seg, right [][][]seg, max int) []byte {
 		pad = 0
 	}
 
-	out := theme.AppendBg(nil, dim(s.theme.SkyTop), s.mode)
+	// In ramp mode the picture has no background of its own, so a coloured
+	// band under the status line reads as a foreign strip pasted over it.
+	var out []byte
+	if s.style == render.StyleHalfBlock {
+		out = theme.AppendBg(nil, dim(s.theme.SkyTop), s.mode)
+	}
 	n := 0
 	emit := func(g seg) {
 		if n >= max {

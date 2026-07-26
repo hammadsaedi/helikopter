@@ -241,17 +241,26 @@ func Luminance(c RGB) float64 {
 	return (0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)) / 255
 }
 
-// AtLuminance rescales c to a target brightness, keeping its hue. Used where
-// the picture is carried by brightness alone and a layer has to land on a
-// particular step of the ASCII ramp.
+// AtLuminance returns c at a target brightness.
+//
+// It blends toward white or black rather than scaling the channels, because
+// scaling cannot reach a high target from a saturated colour: multiplying
+// crimson (luminance 0.27) by 3.7 just clips the channels at 255 and lands at
+// 0.58, not the 0.98 asked for. Line art picks glyphs by brightness, so a red
+// aircraft came out several ramp steps darker than a white one and the drawing
+// fell apart. Blending hits the target exactly, at the cost of some saturation.
 func AtLuminance(c RGB, target float64) RGB {
 	target = clamp01(target)
 	l := Luminance(c)
-	if l < 1e-4 {
-		v := uint8(target * 255)
+	switch {
+	case l < 1e-4:
+		v := uint8(target*255 + 0.5)
 		return RGB{v, v, v}
+	case target > l:
+		return Mix(c, RGB{255, 255, 255}, (target-l)/(1-l))
+	default:
+		return Mix(RGB{}, c, target/l)
 	}
-	return Scale(c, target/l, 0)
 }
 
 func clamp01(v float64) float64 {
