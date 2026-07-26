@@ -266,6 +266,10 @@ Press `m` to mute while flying. Muting kills the player process rather than
 turning the volume down, so muted audio costs nothing. `space` and `i` stop the
 sound as well, since nothing is moving to accompany.
 
+Because pausing ends the process rather than suspending it, resuming always
+starts the loop again from the beginning — you never rejoin the chant
+mid-phrase.
+
 `--synth` generates the soundtrack from scratch rather than playing a
 recording — a square-wave hook over a kick, plus rotor noise chopped at the
 blade-passing frequency, matched to the animation's 8.6 Hz. It is also the
