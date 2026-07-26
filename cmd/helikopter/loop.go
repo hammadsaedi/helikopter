@@ -39,6 +39,7 @@ type state struct {
 
 	paused bool
 	idle   bool
+	muted  bool
 	super  int
 	size   float64
 
@@ -142,6 +143,14 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 	defer ticker.Stop()
 	tick := ticker.C
 
+	// While suspended the animation ticker is stopped entirely. This slow one
+	// takes its place purely so a resize is still noticed; it costs one ioctl
+	// a second and nothing else.
+	housekeep := time.NewTicker(time.Second)
+	defer housekeep.Stop()
+	housekeep.Stop()
+	var slow <-chan time.Time
+
 	s.started = time.Now()
 	lastSize := time.Now()
 	lastFrame := time.Now()
@@ -155,25 +164,26 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 		idleDeadline = time.After(s.idleAfter)
 	}
 
-	enterIdle := func() {
-		s.idle = true
-		ticker.Stop()
-		tick = nil
-		if s.player != nil {
-			s.player.Pause()
+	// Pausing and idling are the same thing to the renderer: nothing moves, so
+	// there is no reason to redraw an identical frame twenty times a second,
+	// and no reason to keep the sound running either.
+	sync := func() {
+		if s.suspended() {
+			ticker.Stop()
+			tick = nil
+			housekeep.Reset(time.Second)
+			slow = housekeep.C
+		} else {
+			housekeep.Stop()
+			slow = nil
+			ticker.Reset(budget)
+			tick = ticker.C
+			lastFrame = time.Now()
+			s.screen.Invalidate()
+			s.scene.Reset()
 		}
-		s.drawIdleScreen()
-	}
-	leaveIdle := func() {
-		s.idle = false
-		ticker.Reset(budget)
-		tick = ticker.C
-		if s.player != nil && !s.silence {
-			s.player.Resume()
-		}
-		s.screen.Invalidate()
-		s.scene.Reset()
-		lastFrame = time.Now()
+		s.syncAudio()
+		s.drawFrame(time.Since(s.started))
 	}
 
 	for {
@@ -187,7 +197,15 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 		case <-idleDeadline:
 			idleDeadline = nil
 			if !s.idle {
-				enterIdle()
+				s.idle = true
+				sync()
+			}
+
+		case <-slow:
+			// Suspended: the only thing worth watching for is a resize.
+			if cols, rows := s.tm.Size(); cols != s.screen.Cols || rows != s.screen.Rows {
+				s.applyResize(cols, rows)
+				s.drawFrame(time.Since(s.started))
 			}
 
 		case k, ok := <-keys:
@@ -200,30 +218,23 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 				return nil
 			case ' ':
 				s.paused = !s.paused
-				lastFrame = time.Now()
+				sync()
 			case 't', 'T':
 				s.nextTheme(1)
 			case 'm', 'M':
-				if s.player != nil {
-					if s.player.Toggle() {
-						s.soundNote = "on"
-					} else {
-						s.soundNote = "muted"
-					}
-				}
+				s.muted = !s.muted
+				s.syncAudio()
 			case 'i', 'I':
-				if s.idle {
-					leaveIdle()
-				} else {
-					enterIdle()
-				}
+				s.idle = !s.idle
+				sync()
 			case '+', '=':
 				s.resize(0.04)
 			case '-', '_':
 				s.resize(-0.04)
 			}
-			if s.idle {
-				s.drawIdleScreen()
+			if s.suspended() {
+				// Redraw once so the change is visible without resuming.
+				s.drawFrame(time.Since(s.started))
 			}
 
 		case <-tick:
@@ -232,26 +243,15 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			if now.Sub(lastSize) > 250*time.Millisecond {
 				lastSize = now
 				if cols, rows := s.tm.Size(); cols != s.screen.Cols || rows != s.screen.Rows {
-					s.screen.Resize(cols, rows)
-					c := s.screen.Canvas()
-					if s.opts.quality < 1 || s.opts.quality > 2 {
-						s.super = autoSuper(c.W * c.H)
-						s.scene.Super = s.super
-					}
-					s.scene.Reset()
+					s.applyResize(cols, rows)
 				}
 			}
 
-			if !s.paused {
-				s.clock += now.Sub(lastFrame).Seconds()
-			}
+			s.clock += now.Sub(lastFrame).Seconds()
 			lastFrame = now
 
 			t0 := time.Now()
-			s.scene.Render(s.screen.Canvas(), s.clock)
-			s.screen.SetStatus(s.statusBar(now.Sub(s.started)))
-			out := s.screen.Flush()
-			os.Stdout.Write(out)
+			s.drawFrame(now.Sub(s.started))
 			cost := time.Since(t0)
 
 			// Keep the frame inside its budget by trading away supersampling
@@ -306,16 +306,57 @@ func (s *state) nextTheme(step int) {
 	s.screen.Invalidate()
 }
 
-// drawIdleScreen paints a still frame once. Nothing is redrawn until the user
-// leaves idle, so the process sits entirely blocked.
-func (s *state) drawIdleScreen() {
-	c := s.screen.Canvas()
-	for i := range c.Px {
-		c.Px[i] = s.theme.SkyTop
+// suspended reports whether the animation is frozen, whether by pause or by
+// idle. Both stop the clock, the redraw and the sound.
+func (s *state) suspended() bool { return s.paused || s.idle }
+
+// audioState decides whether sound should be running, and what the status
+// line should call it. Kept separate from the player so the rules can be
+// tested on their own.
+func audioState(hasPlayer, silence, muted, suspended bool) (play bool, note string) {
+	switch {
+	case silence:
+		return false, "off"
+	case !hasPlayer:
+		return false, "unavailable"
+	case muted:
+		return false, "muted"
+	case suspended:
+		// Nothing is moving, so nothing should be playing either.
+		return false, "paused"
+	default:
+		return true, "on"
 	}
-	s.scene.Render(c, s.clock)
-	s.screen.SetStatus(s.statusBar(time.Since(s.started)))
+}
+
+// syncAudio brings playback in line with the current state.
+func (s *state) syncAudio() {
+	play, note := audioState(s.player != nil, s.silence, s.muted, s.suspended())
+	s.soundNote = note
+	if s.player == nil {
+		return
+	}
+	if play {
+		s.player.Resume()
+	} else {
+		s.player.Pause()
+	}
+}
+
+func (s *state) drawFrame(elapsed time.Duration) {
+	s.scene.Render(s.screen.Canvas(), s.clock)
+	s.screen.SetStatus(s.statusBar(elapsed))
 	os.Stdout.Write(s.screen.Flush())
+}
+
+func (s *state) applyResize(cols, rows int) {
+	s.screen.Resize(cols, rows)
+	c := s.screen.Canvas()
+	if s.opts.quality < 1 || s.opts.quality > 2 {
+		s.super = autoSuper(c.W * c.H)
+		s.scene.Super = s.super
+	}
+	s.scene.Reset()
 }
 
 // runIdle is the no-animation path, used for --idle and whenever stdout is not

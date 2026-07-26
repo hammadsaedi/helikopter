@@ -64,7 +64,7 @@ helikopter --idle-after 5m      fly for five minutes, then settle into idle
 | key       | does                        |
 | --------- | --------------------------- |
 | `q`, `^C` | land                        |
-| `space`   | pause                       |
+| `space`   | pause — stops the sound and the redraw too |
 | `t`       | next theme                  |
 | `m`       | mute / unmute               |
 | `i`       | toggle idle                 |
@@ -262,8 +262,9 @@ helikopter --synth            # the generated chiptune instead
 helikopter --sound my.wav     # your own file, looped
 ```
 
-Press `m` to mute while flying; muting kills the player process, so muted audio
-costs nothing.
+Press `m` to mute while flying. Muting kills the player process rather than
+turning the volume down, so muted audio costs nothing. `space` and `i` stop the
+sound as well, since nothing is moving to accompany.
 
 `--synth` generates the soundtrack from scratch rather than playing a
 recording — a square-wave hook over a kick, plus rotor noise chopped at the

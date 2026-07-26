@@ -104,3 +104,46 @@ func contains(hay, needle string) bool {
 	}
 	return false
 }
+
+// Pausing has to stop the sound as well as the picture: leaving a chant
+// looping over a frozen frame is neither useful nor free.
+func TestAudioStateRules(t *testing.T) {
+	cases := []struct {
+		name                            string
+		hasPlayer, silence, muted, susp bool
+		wantPlay                        bool
+		wantNote                        string
+	}{
+		{"flying", true, false, false, false, true, "on"},
+		{"paused stops the sound", true, false, false, true, false, "paused"},
+		{"muted", true, false, true, false, false, "muted"},
+		{"muted and paused stays muted", true, false, true, true, false, "muted"},
+		{"silenced", true, true, false, false, false, "off"},
+		{"silence beats everything", true, true, true, true, false, "off"},
+		{"no player", false, false, false, false, false, "unavailable"},
+	}
+	for _, c := range cases {
+		play, note := audioState(c.hasPlayer, c.silence, c.muted, c.susp)
+		if play != c.wantPlay || note != c.wantNote {
+			t.Errorf("%s: got (%v, %q), want (%v, %q)",
+				c.name, play, note, c.wantPlay, c.wantNote)
+		}
+	}
+}
+
+func TestSuspendedCoversPauseAndIdle(t *testing.T) {
+	for _, c := range []struct {
+		paused, idle, want bool
+	}{
+		{false, false, false},
+		{true, false, true},
+		{false, true, true},
+		{true, true, true},
+	} {
+		s := &state{paused: c.paused, idle: c.idle}
+		if got := s.suspended(); got != c.want {
+			t.Errorf("paused=%v idle=%v: suspended()=%v, want %v",
+				c.paused, c.idle, got, c.want)
+		}
+	}
+}

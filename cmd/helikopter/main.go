@@ -170,6 +170,9 @@ keys:
   q, Ctrl-C  quit          t  next theme      m  mute / unmute
   space      pause         i  toggle idle     + / -  resize the helicopter
 
+  Pause and idle both stop the sound and stop redrawing, so a paused
+  helikopter costs the same as --idle: nothing.
+
 `)
 }
 
