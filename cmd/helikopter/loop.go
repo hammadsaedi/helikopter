@@ -64,9 +64,21 @@ func autoSuper(pixels int) int {
 
 func (s *state) setup() {
 	s.mode = s.colorMode()
+
+	// Half blocks carry the whole picture in colour: with colour off they
+	// degrade to a meaningless wall of ▀. Fall back to the ramp instead.
 	s.style = render.StyleHalfBlock
-	if s.opts.ascii {
+	if s.opts.ascii || s.mode == theme.ModeNone {
 		s.style = render.StyleASCII
+	}
+
+	// Without colour, hue is gone and only luminance separates the helicopter
+	// from the sky. The greyscale palette is built for that, so prefer it
+	// unless a theme was asked for by name.
+	if s.mode == theme.ModeNone && !s.opts.themeExplicit {
+		if t, err := theme.Get("mono"); err == nil {
+			s.theme = t
+		}
 	}
 	s.size = s.opts.size
 	if s.size < 0.15 {
@@ -84,11 +96,17 @@ func (s *state) setup() {
 	if s.super < 1 || s.super > 2 {
 		s.super = autoSuper(c.W * c.H)
 	}
+	pixelAspect, minimal := 1.0, false
+	if s.style == render.StyleASCII {
+		pixelAspect, minimal = 2.0, true
+	}
 	s.scene = &render.Scene{
-		Theme: s.theme,
-		Seed:  uint32(s.opts.seed),
-		Size:  s.size,
-		Super: s.super,
+		Theme:       s.theme,
+		Seed:        uint32(s.opts.seed),
+		Size:        s.size,
+		Super:       s.super,
+		PixelAspect: pixelAspect,
+		Minimal:     minimal,
 	}
 }
 

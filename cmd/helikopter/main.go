@@ -27,8 +27,9 @@ var (
 )
 
 type options struct {
-	themeName  string
-	listThemes bool
+	themeName     string
+	themeExplicit bool
+	listThemes    bool
 
 	silence bool
 	noMusic bool
@@ -114,6 +115,12 @@ func parseFlags() *options {
 
 	flag.Usage = usage
 	flag.Parse()
+
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "theme" || f.Name == "t" {
+			o.themeExplicit = true
+		}
+	})
 	return o
 }
 

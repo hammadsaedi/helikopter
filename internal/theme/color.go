@@ -236,6 +236,24 @@ func Scale(c RGB, shade, add float64) RGB {
 	return RGB{f(c.R), f(c.G), f(c.B)}
 }
 
+// Luminance is the perceived brightness of c, 0..1.
+func Luminance(c RGB) float64 {
+	return (0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)) / 255
+}
+
+// AtLuminance rescales c to a target brightness, keeping its hue. Used where
+// the picture is carried by brightness alone and a layer has to land on a
+// particular step of the ASCII ramp.
+func AtLuminance(c RGB, target float64) RGB {
+	target = clamp01(target)
+	l := Luminance(c)
+	if l < 1e-4 {
+		v := uint8(target * 255)
+		return RGB{v, v, v}
+	}
+	return Scale(c, target/l, 0)
+}
+
 func clamp01(v float64) float64 {
 	if v < 0 {
 		return 0

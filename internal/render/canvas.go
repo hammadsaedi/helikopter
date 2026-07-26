@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"math"
 	"strconv"
 
 	"github.com/hammadsaedi/helikopter/internal/theme"
@@ -94,7 +95,11 @@ type Screen struct {
 	full bool
 }
 
-var ramp = []rune(" .`',:;\"~-+=<>ilv1cxjtfLCJUYXZO0Qoahkbdpqwm*WMB8&%$#@")
+// A short ramp whose glyphs rise monotonically in *visual density*. Long
+// ramps look like texture noise at terminal resolution: neighbouring levels
+// map to glyphs of similar weight but wildly different shape, and the eye
+// reads shape first.
+var ramp = []rune(" .:-=+*#%@")
 
 // NewScreen reserves the last row or two for the status area.
 func NewScreen(cols, rows int, style Style, mode theme.Mode) *Screen {
@@ -162,10 +167,32 @@ func (s *Screen) composeCells() {
 			}
 		}
 	default:
+		// Stretch the frame's luminance across the whole ramp, otherwise a
+		// scene that never reaches black or white only ever uses the middle
+		// glyphs and the picture turns to mush.
+		lo, hi := 1.0, 0.0
+		for _, c := range s.canvas.Px {
+			l := lum(c)
+			if l < lo {
+				lo = l
+			}
+			if l > hi {
+				hi = l
+			}
+		}
+		span := hi - lo
+		if span < 1e-3 {
+			span = 1
+		}
+
 		for r := 0; r < s.artRows; r++ {
 			for x := 0; x < s.Cols; x++ {
 				col := s.canvas.Get(x, r)
-				g := ramp[int(lum(col)*float64(len(ramp)-1)+0.5)]
+				t := (lum(col) - lo) / span
+				// Lift the midtones so the ramp is used across its length
+				// instead of piling everything at the dark end.
+				t = math.Pow(t, 0.72)
+				g := ramp[int(t*float64(len(ramp)-1)+0.5)]
 				if s.mode == theme.ModeNone {
 					s.cur[r*s.Cols+x] = cell{glyph: g, fg: theme.RGB{R: 255, G: 255, B: 255}}
 				} else {

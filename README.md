@@ -210,8 +210,33 @@ That buys three things a pair of ASCII frames cannot:
   resampled rather than scaled.
 
 Output is half-block glyphs (`▀`), two pixels per cell, so pixels come out
-square. `--ascii` falls back to a luminance ramp for terminals without Unicode,
-and `--color never` (or `NO_COLOR`) drops to plain shading.
+square.
+
+Without Unicode or colour the picture has to be carried by characters instead,
+and `--ascii`, `--color never` and `NO_COLOR` switch to a different drawing —
+not the same one degraded. Half blocks carry everything in colour, so with
+colour off they would be a meaningless wall of `▀`; the ramp is used instead.
+Rendering the full scene through a ramp turns the sky into a field of
+punctuation, so the sky goes blank, the terrain becomes a horizon line and the
+helicopter is remapped into the dense end of the ramp — bright enough that thin
+parts like the tail boom cannot drop out and break the silhouette. A cell is
+about twice as tall as it is wide, so the model is squashed to match. Where no
+theme was named, the greyscale palette is chosen, because it is spaced by
+brightness rather than by hue.
+
+```
+                              .:::-...
+                       .:-==++++++*##==+++++++=+==-..
+                                    :%+==--:..   *==.
+                                -=++=+*%-       +*-+:
+                              =#%#-@%%%*#-      %%=-
+                             =@@@%@**%#**##+::-#%%%
+                             :++++#***+==.
+                 ..           ..::-:::.
+       ::::::::---::::::::::::--:::::::::::-::::::::---:::::::::::::::
+--------------------------------------------------------------------------------
++++++++++++++++++++++++++++++++++++.....++++++++++++++++++++++++++++++++++++++++
+```
 
 To look at the art as pixels rather than escape codes:
 

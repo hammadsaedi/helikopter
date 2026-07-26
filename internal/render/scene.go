@@ -9,6 +9,21 @@ import (
 
 const horizonFrac = 0.76
 
+// The dimmest an airframe pixel may be in Minimal mode, as a fraction of full
+// brightness: enough to keep every part of the silhouette on the ramp.
+const minAirframeLum = 0.22
+
+// rampLift remaps an airframe colour into the top of the ASCII ramp, keeping
+// its hue. Without it the picture depends on how bright the theme's paint
+// happens to be: a red hull is barely a third as luminous as a white one, so
+// crimson came out as faint punctuation while mono came out crisp. The floor
+// also stops thin parts — the tail boom especially — dropping to blank and
+// breaking the silhouette.
+func rampLift(c theme.RGB) theme.RGB {
+	l := clamp(theme.Luminance(c)/0.85, 0, 1)
+	return theme.AtLuminance(c, minAirframeLum+(1-minAirframeLum)*math.Pow(l, 0.75))
+}
+
 // Scene draws the animated frame. Everything that does not change from frame to
 // frame is computed once: the sky gradient and sun are baked into a background
 // buffer, and each cloud band is a ring of pre-shaded columns that scrolls by
@@ -19,6 +34,17 @@ type Scene struct {
 	Seed  uint32
 	Size  float64
 	Super int
+
+	// PixelAspect is how tall a canvas pixel is relative to its width. Half
+	// blocks give square pixels (1); the ASCII ramp is one whole cell per
+	// pixel, and a cell is about twice as tall as it is wide (2).
+	PixelAspect float64
+
+	// Minimal strips the scene back for the ASCII ramp, where every pixel
+	// becomes a glyph and a full sky turns into a field of punctuation. Cloud,
+	// stars and the sun come off, and the sky is pushed down to the blank end
+	// of the ramp, leaving an airframe against open space.
+	Minimal bool
 
 	w, h int
 	hy   float64
@@ -90,12 +116,17 @@ func (s *Scene) bakeBackground() {
 	s.bg = make([]theme.RGB, s.w*s.h)
 	for y := 0; y < s.h; y++ {
 		col := th.Sky(clamp(float64(y)/math.Max(s.hy, 1), 0, 1))
+		if s.Minimal {
+			// Black, so the ramp leaves it blank and the airframe has open
+			// space around it.
+			col = theme.RGB{}
+		}
 		row := s.bg[y*s.w : (y+1)*s.w]
 		for x := range row {
 			row[x] = col
 		}
 	}
-	if !th.OrbVisible {
+	if !th.OrbVisible || s.Minimal {
 		return
 	}
 
@@ -127,7 +158,7 @@ func (s *Scene) bakeBackground() {
 
 func (s *Scene) bakeStars() {
 	s.stars = nil
-	if !s.Theme.Stars {
+	if !s.Theme.Stars || s.Minimal {
 		return
 	}
 	n := s.w * int(s.hy) / 190
@@ -147,6 +178,10 @@ func (s *Scene) bakeStars() {
 }
 
 func (s *Scene) bakeBands() {
+	s.bands = nil
+	if s.Minimal {
+		return
+	}
 	specs := []cloudBand{
 		{y0: int(0.04 * s.hy), y1: int(0.34 * s.hy), speed: 1.6, sx: 0.055, sy: 0.16, thresh: 0.545, alpha: 0.85, seed: s.Seed + 11},
 		{y0: int(0.28 * s.hy), y1: int(0.62 * s.hy), speed: 4.2, sx: 0.038, sy: 0.20, thresh: 0.575, alpha: 0.95, seed: s.Seed + 29},
@@ -271,13 +306,17 @@ func (s *Scene) Render(c *Canvas, t float64) {
 	if fw < 24 {
 		fw = 24
 	}
-	fh := int(float64(fw) / art.AspectRatio())
-	if fh < 10 {
-		fh = 10
+	pa := s.PixelAspect
+	if pa <= 0 {
+		pa = 1
+	}
+	fh := int(float64(fw) / art.AspectRatio() / pa)
+	if fh < 6 {
+		fh = 6
 	}
 	if float64(fh) > H*0.92 {
 		fh = int(H * 0.92)
-		fw = int(float64(fh) * art.AspectRatio())
+		fw = int(float64(fh) * art.AspectRatio() * pa)
 	}
 
 	s.frame = art.RasterizeInto(s.frame, fw, fh, art.Options{
@@ -309,11 +348,15 @@ func (s *Scene) terrain(c *Canvas, t float64) {
 		haze        float64
 		seed        uint32
 		oct         int
+		// crest is the brightness this layer's horizon line takes in Minimal
+		// mode, chosen so the three ridges land on distinct ramp steps and
+		// read as depth rather than as three bright bars.
+		crest float64
 	}
 	layers := [...]layer{
-		{th.Ridge, H * 0.130, 26, 2.5, 0.005, 0.55, s.Seed + 101, 4},
-		{th.Hills, H * 0.070, 15, 8.0, 0.030, 0.28, s.Seed + 211, 3},
-		{th.Ground, H * 0.028, 9, 26.0, 0.070, 0.00, s.Seed + 307, 2},
+		{th.Ridge, H * 0.130, 26, 2.5, 0.005, 0.55, s.Seed + 101, 4, 0.17},
+		{th.Hills, H * 0.070, 15, 8.0, 0.030, 0.28, s.Seed + 211, 3, 0.27},
+		{th.Ground, H * 0.045, 11, 26.0, 0.070, 0.00, s.Seed + 307, 2, 0.40},
 	}
 
 	for _, l := range layers {
@@ -324,6 +367,21 @@ func (s *Scene) terrain(c *Canvas, t float64) {
 			if y0 < 0 {
 				y0 = 0
 			}
+
+			if s.Minimal {
+				// Just the crest: a solid block of ground would become a solid
+				// block of punctuation. The horizon reads as a line instead.
+				// A faint mass below the crest so the ground has weight,
+				// with the crest itself a step brighter.
+				for y := y0; y < c.H; y++ {
+					c.Set(x, y, theme.AtLuminance(l.col, 0.055))
+				}
+				if y0 < c.H {
+					c.Set(x, y0, theme.AtLuminance(l.col, l.crest))
+				}
+				continue
+			}
+
 			for y := y0; y < c.H; y++ {
 				col := l.col
 				if l.haze > 0 {
@@ -336,7 +394,7 @@ func (s *Scene) terrain(c *Canvas, t float64) {
 		}
 	}
 
-	if th.Grid != (theme.RGB{}) {
+	if th.Grid != (theme.RGB{}) && !s.Minimal {
 		s.grid(c, t)
 	}
 }
@@ -396,7 +454,11 @@ func (s *Scene) downwash(c *Canvas, ox, oy, fw, fh int, t float64) {
 				continue
 			}
 			n := fbm2(float64(x)*0.30, (float64(y)-t*46)*0.11, s.Seed+77, 2)
-			if a := (n - 0.52) * 5 * fade * (1 - off*off); a > 0.01 {
+			a := (n - 0.52) * 5 * fade * (1 - off*off)
+			if s.Minimal {
+				a *= 0.4 // the ramp turns faint wash into distracting speckle
+			}
+			if a > 0.01 {
 				c.Blend(x, y, th.Wash, clamp(a, 0, 0.5))
 			}
 		}
@@ -416,7 +478,11 @@ func (s *Scene) blitHeli(c *Canvas, ox, oy int) {
 			if p.Mat == art.MatRotor {
 				a *= 0.88
 			}
-			c.Blend(ox+x, oy+y, theme.Scale(th.Mat[p.Mat], p.Shade, p.Spec), a)
+			col := theme.Scale(th.Mat[p.Mat], p.Shade, p.Spec)
+			if s.Minimal {
+				col = rampLift(col)
+			}
+			c.Blend(ox+x, oy+y, col, a)
 		}
 	}
 }
