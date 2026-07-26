@@ -36,6 +36,17 @@ curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install
 irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
 ```
 
+**Package managers**
+
+```sh
+brew install hammadsaedi/tap/helikopter    # macOS, Linux
+scoop install helikopter                   # Windows
+winget install hammadsaedi.helikopter      # Windows
+```
+
+Manifests live in [packaging/](packaging/); see that directory for the state of
+each channel.
+
 ### Windows and unsigned binaries
 
 The released `helikopter.exe` is **not code-signed**, so Windows may object the
