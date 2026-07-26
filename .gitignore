@@ -1,0 +1,6 @@
+/dist/
+/build/
+/helikopter
+/helikopter.exe
+*.test
+*.out
