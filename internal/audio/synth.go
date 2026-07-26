@@ -21,6 +21,11 @@ type Config struct {
 	Music  bool
 	Rotor  bool
 	Volume float64 // 0..1
+
+	// Synth generates the soundtrack instead of using the packaged recordings.
+	Synth bool
+	// File is a WAV supplied by the user, which replaces everything else.
+	File string
 }
 
 // A note in the pattern: semitones relative to A3, position and length in beats.
@@ -103,8 +108,8 @@ func env(t, dur, attack, release float64) float64 {
 	return a
 }
 
-// Render produces a complete WAV file: one seamless bar-aligned loop.
-func Render(cfg Config) []byte {
+// renderSynth produces a complete WAV file: one seamless bar-aligned loop.
+func renderSynth(cfg Config) []byte {
 	total := int(loopBeats * beat * sampleRate)
 	buf := make([]float64, total)
 
@@ -141,7 +146,7 @@ func Render(cfg Config) []byte {
 		}
 		out[i] = int16(v * 30000)
 	}
-	return wav(out)
+	return wav(out, sampleRate)
 }
 
 func renderVoice(buf []float64, notes []note, gain, detune float64, osc func(float64) float64) {
@@ -231,7 +236,7 @@ func renderRotor(buf []float64) {
 }
 
 // wav wraps PCM samples in a 16-bit mono RIFF container.
-func wav(samples []int16) []byte {
+func wav(samples []int16, rate int) []byte {
 	const hdr = 44
 	data := len(samples) * 2
 	out := make([]byte, hdr+data)
@@ -243,8 +248,8 @@ func wav(samples []int16) []byte {
 	binary.LittleEndian.PutUint32(out[16:], 16)
 	binary.LittleEndian.PutUint16(out[20:], 1) // PCM
 	binary.LittleEndian.PutUint16(out[22:], 1) // mono
-	binary.LittleEndian.PutUint32(out[24:], sampleRate)
-	binary.LittleEndian.PutUint32(out[28:], sampleRate*2)
+	binary.LittleEndian.PutUint32(out[24:], uint32(rate))
+	binary.LittleEndian.PutUint32(out[28:], uint32(rate*2))
 	binary.LittleEndian.PutUint16(out[32:], 2)
 	binary.LittleEndian.PutUint16(out[34:], 16)
 	copy(out[36:], "data")
@@ -256,5 +261,5 @@ func wav(samples []int16) []byte {
 	return out
 }
 
-// LoopSeconds is the length of one rendered loop.
-func LoopSeconds() float64 { return loopBeats * beat }
+// SynthLoopSeconds is the length of one generated loop.
+func SynthLoopSeconds() float64 { return loopBeats * beat }

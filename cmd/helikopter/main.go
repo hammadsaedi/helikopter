@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -31,9 +32,11 @@ type options struct {
 	themeExplicit bool
 	listThemes    bool
 
-	silence bool
-	noMusic bool
-	volume  int
+	silence   bool
+	noMusic   bool
+	volume    int
+	synth     bool
+	soundFile string
 
 	fps      int
 	size     float64
@@ -89,8 +92,10 @@ func parseFlags() *options {
 	flag.BoolVar(&o.listThemes, "list-themes", false, "list themes and exit")
 
 	boolVar(&o.silence, []string{"silence", "s"}, "fly with no sound at all")
-	flag.BoolVar(&o.noMusic, "no-music", false, "rotor noise only, no music")
+	flag.BoolVar(&o.noMusic, "no-music", false, "rotor noise only, no chant")
 	flag.IntVar(&o.volume, "volume", 70, "volume, 0-100")
+	flag.BoolVar(&o.synth, "synth", false, "use the generated chiptune instead of the recordings")
+	flag.StringVar(&o.soundFile, "sound", "", "play this WAV instead (looped)")
 
 	flag.IntVar(&o.fps, "fps", 20, "frames per second")
 	flag.Float64Var(&o.size, "size", 0.78, "helicopter width as a fraction of the terminal")
@@ -139,8 +144,10 @@ flags:
       --list-themes    list themes and exit
 
   -s, --silence        fly with no sound at all
-      --no-music       rotor noise only, no music
+      --no-music       rotor noise only, no chant
       --volume N       volume, 0-100 (default 70)
+      --synth          use the generated chiptune instead of the recordings
+      --sound FILE     play FILE instead (WAV, looped)
 
       --fps N          frames per second (default 20)
       --size F         helicopter width as a fraction of the terminal (default 0.78)
@@ -242,8 +249,14 @@ func run() error {
 			Music:  !o.noMusic,
 			Rotor:  true,
 			Volume: float64(o.volume) / 100,
+			Synth:  o.synth,
+			File:   o.soundFile,
 		})
 		if err != nil {
+			// A bad --sound path is the user's mistake, not a missing player.
+			if o.soundFile != "" && !errors.Is(err, audio.ErrNoPlayer) {
+				return err
+			}
 			soundNote = "unavailable"
 		} else {
 			player = p

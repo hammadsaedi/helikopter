@@ -18,6 +18,7 @@ var ErrNoPlayer = errors.New("no audio player found")
 type Player struct {
 	path    string
 	backend backend
+	source  Source
 
 	mu   sync.Mutex
 	cmd  *exec.Cmd
@@ -44,18 +45,24 @@ func New(cfg Config) (*Player, error) {
 	if err != nil {
 		return nil, err
 	}
+	data, source, err := Render(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	dir, err := os.MkdirTemp("", "helikopter-")
 	if err != nil {
 		return nil, err
 	}
 	path := filepath.Join(dir, "helikopter.wav")
-	if err := os.WriteFile(path, Render(cfg), 0o600); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		os.RemoveAll(dir)
 		return nil, err
 	}
 	return &Player{
 		path:    path,
 		backend: b,
+		source:  source,
 		wake:    make(chan struct{}, 1),
 		quit:    make(chan struct{}),
 		done:    make(chan struct{}),
@@ -64,6 +71,9 @@ func New(cfg Config) (*Player, error) {
 
 // Method names the backend in use.
 func (p *Player) Method() string { return p.backend.name }
+
+// Source reports where the audio came from.
+func (p *Player) Source() Source { return p.source }
 
 // Playing reports whether sound is currently running.
 func (p *Player) Playing() bool { return p.want.Load() }

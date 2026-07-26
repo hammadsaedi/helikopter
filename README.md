@@ -18,8 +18,8 @@ A screen-saver that keeps the screen *on*. Press `q` to land.
   blinking navigation lights.
 - **Keeps the machine awake.** Holds a real OS wake lock for as long as it runs, on
   macOS, Linux and Windows. Nothing is left behind if it crashes.
-- **Makes noise.** A synthesised soundtrack and rotor wash, generated at startup.
-  `--silence` turns it all off.
+- **Makes noise.** The *helikopter helikopter* chant over a rotor bed, or a
+  soundtrack generated from scratch with `--synth`. `--silence` turns it off.
 - **Costs almost nothing.** ~1% of one core while animating; 0% in `--idle`.
 
 ## Install
@@ -79,6 +79,8 @@ helikopter --idle-after 5m      fly for five minutes, then settle into idle
 | `-s, --silence`   |           | no sound at all                                    |
 | `--no-music`      |           | rotor noise only                                   |
 | `--volume`        | `70`      | 0–100                                              |
+| `--synth`         |           | generated chiptune instead of the recordings       |
+| `--sound FILE`    |           | play FILE instead (WAV, looped)                    |
 | `--fps`           | `20`      | frames per second                                  |
 | `--size`          | `0.78`    | helicopter width as a fraction of the terminal     |
 | `--quality`       | auto      | supersampling, 1–2                                 |
@@ -246,20 +248,59 @@ make preview OUT=./preview     # one PNG per theme
 
 ## Sound
 
-The soundtrack is synthesised into a WAV at startup — a square-wave hook over a
-kick, plus a rotor built from noise chopped at the blade-passing frequency,
-matched to the animation's 8.6 Hz. Nothing is embedded and nothing is
-downloaded. Playback shells out to whatever the host already has:
+By default it plays the packaged recordings: the *helikopter helikopter* chant
+over a rotor bed, mixed at startup into a single seamless loop. The chant sets
+the loop length so the phrase is never cut mid-word, and the rotor is tiled
+underneath to fill it.
 
-| platform | uses                                                     |
-| -------- | -------------------------------------------------------- |
-| macOS    | `afplay`                                                  |
-| Linux    | `paplay`, `pw-play`, `aplay`, `ffplay`, `mpv` or `play`   |
-| Windows  | PowerShell `SoundPlayer.PlayLooping`                      |
+```sh
+helikopter                    # chant + rotor
+helikopter --no-music         # rotor only
+helikopter --volume 30        # quieter
+helikopter --silence          # nothing at all
+helikopter --synth            # the generated chiptune instead
+helikopter --sound my.wav     # your own file, looped
+```
+
+Press `m` to mute while flying; muting kills the player process, so muted audio
+costs nothing.
+
+`--synth` generates the soundtrack from scratch rather than playing a
+recording — a square-wave hook over a kick, plus rotor noise chopped at the
+blade-passing frequency, matched to the animation's 8.6 Hz. It is also the
+automatic fallback if the packaged audio ever fails to decode.
+
+The clips ship as **mono 22.05 kHz WAV, not the MP3s they came from**. That is
+deliberate: half the playback commands available — `aplay`, `paplay` and
+PowerShell's `SoundPlayer` — only understand WAV, so shipping MP3 would have
+meant sound on macOS and silence nearly everywhere else. It is also why
+`--sound` takes a WAV. The two clips add about 900 KB to the binary.
+
+Playback shells out to whatever the host already has:
+
+| platform | uses |
+| -------- | ---- |
+| macOS    | `afplay` |
+| Linux    | `paplay`, `pw-play`, `aplay`, `ffplay`, `mpv` or `play` |
+| Windows  | PowerShell `SoundPlayer.PlayLooping` |
 
 If none is found the status line says `sound unavailable` and it flies on in
-silence. `--silence` skips synthesis entirely; `m` pauses by killing the player
-process, so muted audio costs nothing.
+silence.
+
+### Audio credits
+
+The packaged clips in [internal/audio/assets/](internal/audio/assets/) are
+third-party recordings, not original work:
+
+| file | from |
+| --- | --- |
+| `voice.wav` | `helicopter-helicopter-parakofer-parakofer.mp3` |
+| `rotor.wav` | `dragon-studio-helicopter-sound-8d-372463.mp3` |
+
+Both were converted to mono 22.05 kHz WAV. If you intend to publish this
+repository, check that their licences permit redistribution and replace the
+credits above with the real source and licence — `--synth` and `--sound` exist
+so the tool works without them either way.
 
 ## Development
 

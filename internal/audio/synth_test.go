@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-func TestRenderProducesAValidWav(t *testing.T) {
-	b := Render(Config{Music: true, Rotor: true, Volume: 0.7})
+func TestSynthProducesAValidWav(t *testing.T) {
+	b := renderSynth(Config{Music: true, Rotor: true, Volume: 0.7})
 
 	if len(b) < 44 {
 		t.Fatalf("output is shorter than a WAV header: %d bytes", len(b))
@@ -36,14 +36,14 @@ func TestRenderProducesAValidWav(t *testing.T) {
 		t.Errorf("RIFF size = %d, want %d", riff, len(b)-8)
 	}
 
-	wantSamples := int(LoopSeconds() * sampleRate)
+	wantSamples := int(SynthLoopSeconds() * sampleRate)
 	if got := len(b[44:]) / 2; got != wantSamples {
-		t.Errorf("got %d samples, want %d for a %.2fs loop", got, wantSamples, LoopSeconds())
+		t.Errorf("got %d samples, want %d for a %.2fs loop", got, wantSamples, SynthLoopSeconds())
 	}
 }
 
-func TestRenderIsAudible(t *testing.T) {
-	b := Render(Config{Music: true, Rotor: true, Volume: 0.7})
+func TestSynthIsAudible(t *testing.T) {
+	b := renderSynth(Config{Music: true, Rotor: true, Volume: 0.7})
 	var peak, energy float64
 	n := (len(b) - 44) / 2
 	for i := 0; i < n; i++ {
@@ -67,7 +67,7 @@ func TestRenderIsAudible(t *testing.T) {
 func TestLoopSeamIsFaded(t *testing.T) {
 	// The loop restarts by relaunching the player, so both ends must be near
 	// zero or every repeat clicks.
-	b := Render(Config{Music: true, Rotor: true, Volume: 1})
+	b := renderSynth(Config{Music: true, Rotor: true, Volume: 1})
 	n := (len(b) - 44) / 2
 	first := int16(binary.LittleEndian.Uint16(b[44:]))
 	last := int16(binary.LittleEndian.Uint16(b[44+(n-1)*2:]))
@@ -77,9 +77,9 @@ func TestLoopSeamIsFaded(t *testing.T) {
 }
 
 func TestSilenceComponentsAreSeparable(t *testing.T) {
-	rotorOnly := Render(Config{Music: false, Rotor: true, Volume: 0.7})
-	both := Render(Config{Music: true, Rotor: true, Volume: 0.7})
-	nothing := Render(Config{Music: false, Rotor: false, Volume: 0.7})
+	rotorOnly := renderSynth(Config{Music: false, Rotor: true, Volume: 0.7})
+	both := renderSynth(Config{Music: true, Rotor: true, Volume: 0.7})
+	nothing := renderSynth(Config{Music: false, Rotor: false, Volume: 0.7})
 
 	if len(rotorOnly) != len(both) || len(both) != len(nothing) {
 		t.Fatal("every configuration should produce the same loop length")
@@ -102,8 +102,8 @@ func TestSilenceComponentsAreSeparable(t *testing.T) {
 }
 
 func TestVolumeScales(t *testing.T) {
-	quiet := Render(Config{Music: true, Rotor: true, Volume: 0.2})
-	loud := Render(Config{Music: true, Rotor: true, Volume: 1.0})
+	quiet := renderSynth(Config{Music: true, Rotor: true, Volume: 0.2})
+	loud := renderSynth(Config{Music: true, Rotor: true, Volume: 1.0})
 
 	peak := func(b []byte) float64 {
 		var p float64
