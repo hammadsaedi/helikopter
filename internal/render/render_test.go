@@ -8,6 +8,9 @@ import (
 	"github.com/hammadsaedi/helikopter/internal/theme"
 )
 
+// ModeFor keeps the geometry tests independent of colour depth.
+func ModeFor(t *testing.T) theme.Mode { return theme.ModeTrue }
+
 func newScene(t *testing.T) *Scene {
 	t.Helper()
 	th, err := theme.Get("crimson")
@@ -86,7 +89,7 @@ func TestScreenDiffShrinksTheSecondFrame(t *testing.T) {
 	s := newScene(t)
 
 	s.Render(sc.Canvas(), 1.0)
-	sc.SetStatus([]byte("status"))
+	sc.SetStatus([][]byte{[]byte("status")})
 	first := len(sc.Flush())
 
 	// Re-flushing an unchanged canvas should cost almost nothing beyond the
@@ -149,23 +152,42 @@ func TestHalfBlockCollapsesIdenticalHalves(t *testing.T) {
 }
 
 func TestScreenResizeKeepsGeometryConsistent(t *testing.T) {
-	sc := NewScreen(80, 24, StyleHalfBlock, theme.ModeTrue)
-	if got := sc.Canvas().H; got != (24-1)*2 {
-		t.Fatalf("half-block canvas height = %d, want %d", got, (24-1)*2)
+	sc := NewScreen(80, 24, StyleHalfBlock, ModeFor(t))
+	if got, want := sc.ArtRows(), 24-sc.StatusRows(); got != want {
+		t.Fatalf("ArtRows() = %d, want %d", got, want)
 	}
+	if got, want := sc.Canvas().H, sc.ArtRows()*2; got != want {
+		t.Fatalf("half-block canvas height = %d, want %d", got, want)
+	}
+
 	sc.Resize(50, 10)
-	if sc.Canvas().W != 50 || sc.Canvas().H != (10-1)*2 {
-		t.Fatalf("after resize canvas is %dx%d", sc.Canvas().W, sc.Canvas().H)
+	if sc.Canvas().W != 50 || sc.Canvas().H != sc.ArtRows()*2 {
+		t.Fatalf("after resize canvas is %dx%d for %d art rows",
+			sc.Canvas().W, sc.Canvas().H, sc.ArtRows())
 	}
-	if sc.ArtRows() != 9 {
-		t.Fatalf("ArtRows() = %d, want 9", sc.ArtRows())
+}
+
+// The status area takes a second row for the key hints wherever there is
+// height to spare, and gives it back on very short terminals.
+func TestStatusRowsScaleWithHeight(t *testing.T) {
+	for _, tc := range []struct{ rows, want int }{
+		{4, 1}, {8, 1}, {9, 1}, {10, 2}, {24, 2}, {60, 2},
+	} {
+		sc := NewScreen(80, tc.rows, StyleHalfBlock, ModeFor(t))
+		if got := sc.StatusRows(); got != tc.want {
+			t.Errorf("%d rows: StatusRows() = %d, want %d", tc.rows, got, tc.want)
+		}
+		if sc.ArtRows()+sc.StatusRows() != sc.Rows {
+			t.Errorf("%d rows: art %d + status %d does not add up",
+				tc.rows, sc.ArtRows(), sc.StatusRows())
+		}
 	}
 }
 
 func TestASCIIStyleUsesOnePixelPerRow(t *testing.T) {
-	sc := NewScreen(40, 12, StyleASCII, theme.ModeTrue)
-	if sc.Canvas().H != 11 {
-		t.Fatalf("ASCII canvas height = %d, want 11", sc.Canvas().H)
+	sc := NewScreen(40, 12, StyleASCII, ModeFor(t))
+	if got := sc.Canvas().H; got != sc.ArtRows() {
+		t.Fatalf("ASCII canvas height = %d, want %d", got, sc.ArtRows())
 	}
 }
 
@@ -187,7 +209,7 @@ func BenchmarkScreenFlush(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		s.Render(sc.Canvas(), float64(i)*0.04)
-		sc.SetStatus([]byte("bench"))
+		sc.SetStatus([][]byte{[]byte("bench")})
 		sc.Flush()
 	}
 }

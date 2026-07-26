@@ -23,7 +23,7 @@ type state struct {
 	theme *theme.Theme
 	tm    *term.Term
 
-	lockNote  string
+	awakeNote string
 	soundNote string
 	player    *audio.Player
 	silence   bool
@@ -188,7 +188,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			case 'm', 'M':
 				if s.player != nil {
 					if s.player.Toggle() {
-						s.soundNote = s.player.Method()
+						s.soundNote = "on"
 					} else {
 						s.soundNote = "muted"
 					}
@@ -379,9 +379,46 @@ type seg struct {
 	col  theme.RGB
 }
 
-func (s *state) statusBar(elapsed time.Duration) []byte {
-	th := s.theme
+// statusBar renders the status area: flight information on the first row and
+// the key hints on the second, where there is room for two.
+//
+// Each row is kept strictly inside the terminal width. One character too many
+// wraps, and a wrap in the alternate screen scrolls everything and corrupts
+// the next differential update — which is exactly what used to happen at 78
+// columns. Detail is dropped by priority as the terminal narrows, and whatever
+// survives is still truncated to fit.
+func (s *state) statusBar(elapsed time.Duration) [][]byte {
+	// Leave the last cell of each row untouched: writing it makes some
+	// terminals scroll even with auto-wrap off.
+	max := s.screen.Cols - 1
+	if max < 1 {
+		return nil
+	}
 
+	info := s.infoSegs(elapsed)
+	keys := s.keySegs()
+
+	if s.screen.StatusRows() >= 2 {
+		// Pick the fullest key hint that fits on its own row.
+		best := keys[len(keys)-1]
+		for _, variant := range keys {
+			var flat []seg
+			for _, g := range variant {
+				flat = append(flat, g...)
+			}
+			if width(flat) <= max {
+				best = variant
+				break
+			}
+		}
+		return [][]byte{s.line(info, nil, max), s.line(best, nil, max)}
+	}
+	// Only one row to work with: fit what we can of both.
+	return [][]byte{s.line(info, keys, max)}
+}
+
+func (s *state) infoSegs(elapsed time.Duration) [][]seg {
+	th := s.theme
 	stateWord := "flying"
 	switch {
 	case s.idle:
@@ -389,45 +426,99 @@ func (s *state) statusBar(elapsed time.Duration) []byte {
 	case s.paused:
 		stateWord = "paused"
 	}
+	return [][]seg{
+		{{" helikopter ", th.UIKey}},
+		{{"· ", th.UIDim}, {th.Name + " ", th.UIText}},
+		{{"· " + stateWord + " ", th.UIDim}, {fmtDur(elapsed) + " ", th.UIText}},
+		{{"· awake ", th.UIDim}, {s.awakeNote + " ", th.UIText}},
+		{{"· sound ", th.UIDim}, {s.soundNote + " ", th.UIText}},
+	}
+}
 
-	segs := []seg{
-		{" helikopter ", th.UIKey},
-		{"· ", th.UIDim},
-		{th.Name + " ", th.UIText},
-		{"· awake ", th.UIDim},
-		{s.lockNote + " ", th.UIText},
-		{"· sound ", th.UIDim},
-		{s.soundNote + " ", th.UIText},
-		{"· " + stateWord + " ", th.UIDim},
-		{fmtDur(elapsed) + " ", th.UIText},
+// keySegs returns the key hints from fullest to tersest, so a narrow terminal
+// keeps as many as will fit.
+func (s *state) keySegs() [][][]seg {
+	th := s.theme
+	k := func(key, label string) []seg {
+		return []seg{{key, th.UIKey}, {" " + label, th.UIDim}}
+	}
+	sep := seg{" · ", th.UIDim}
+
+	join := func(groups ...[]seg) [][]seg {
+		var out [][]seg
+		for i, g := range groups {
+			if i > 0 {
+				out = append(out, []seg{sep})
+			}
+			out = append(out, g)
+		}
+		return out
 	}
 
-	keys := []seg{
-		{"q", th.UIKey}, {" quit  ", th.UIDim},
-		{"t", th.UIKey}, {" theme  ", th.UIDim},
-		{"m", th.UIKey}, {" mute  ", th.UIDim},
-		{"i", th.UIKey}, {" idle ", th.UIDim},
+	return [][][]seg{
+		join(k("q", "quit"), k("t", "next theme"), k("m", "mute"),
+			k("space", "pause"), k("i", "idle"), k("+ / -", "resize")),
+		join(k("q", "quit"), k("t", "theme"), k("m", "mute"),
+			k("space", "pause"), k("i", "idle")),
+		join(k("q", "quit"), k("t", "theme"), k("m", "mute"), k("i", "idle")),
+		join(k("q", "quit"), k("t", "theme")),
+		join(k("q", "quit")),
+	}
+}
+
+// line lays out chunks on the left and the best-fitting variant of right on the
+// far side, padding between and truncating so the result is exactly max wide.
+func (s *state) line(left [][]seg, right [][][]seg, max int) []byte {
+	var chosen []seg
+	used := 0
+	for _, c := range left {
+		w := width(c)
+		if used+w > max {
+			break
+		}
+		chosen = append(chosen, c...)
+		used += w
 	}
 
-	left := width(segs)
-	right := width(keys)
-	pad := s.screen.Cols - left - right
-	if pad < 1 {
-		keys = nil
-		pad = s.screen.Cols - left
+	var tail []seg
+	for _, variant := range right {
+		var flat []seg
+		for _, g := range variant {
+			flat = append(flat, g...)
+		}
+		if w := width(flat); used+w <= max {
+			tail = flat
+			used += w
+			break
+		}
 	}
+
+	pad := max - used
 	if pad < 0 {
 		pad = 0
 	}
 
-	var out []byte
-	out = theme.AppendBg(out, dim(th.SkyTop), s.mode)
-	for _, g := range segs {
-		out = appendSeg(out, g, s.mode)
+	out := theme.AppendBg(nil, dim(s.theme.SkyTop), s.mode)
+	n := 0
+	emit := func(g seg) {
+		if n >= max {
+			return
+		}
+		r := []rune(g.text)
+		if n+len(r) > max {
+			r = r[:max-n]
+		}
+		out = theme.AppendFg(out, g.col, s.mode)
+		out = append(out, string(r)...)
+		n += len(r)
 	}
-	out = append(out, strings.Repeat(" ", pad)...)
-	for _, g := range keys {
-		out = appendSeg(out, g, s.mode)
+
+	for _, g := range chosen {
+		emit(g)
+	}
+	emit(seg{strings.Repeat(" ", pad), s.theme.UIDim})
+	for _, g := range tail {
+		emit(g)
 	}
 	return out
 }

@@ -217,13 +217,13 @@ func run() error {
 
 	// A wake lock is the whole point, so take it before anything that can fail.
 	lock := awake.Noop()
-	lockNote := "off"
+	awakeNote := "off"
 	if !o.noWakeLock {
 		l, err := awake.Acquire(awake.Options{Display: !o.noDisplay})
 		if err != nil {
-			lockNote = "unavailable"
+			awakeNote = "unavailable"
 		} else {
-			lock, lockNote = l, l.Method()
+			lock, awakeNote = l, "on"
 		}
 	}
 	defer lock.Release()
@@ -240,7 +240,7 @@ func run() error {
 			soundNote = "unavailable"
 		} else {
 			player = p
-			soundNote = p.Method()
+			soundNote = "on"
 			player.Start()
 			defer player.Stop()
 		}
@@ -251,7 +251,7 @@ func run() error {
 
 	st := &state{
 		opts: o, theme: th, tm: tm,
-		lockNote: lockNote, soundNote: soundNote,
+		awakeNote: awakeNote, soundNote: soundNote,
 		player: player, silence: o.silence,
 		themeNames: names,
 		total:      total, idleAfter: idleAfter,

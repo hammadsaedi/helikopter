@@ -78,6 +78,7 @@ type cell struct {
 type Screen struct {
 	Cols, Rows int // full terminal size
 	artRows    int // rows given over to the animation
+	statusRows int // rows reserved for the status area
 
 	canvas *Canvas
 	style  Style
@@ -86,7 +87,7 @@ type Screen struct {
 	prev []cell
 	cur  []cell
 
-	status []byte
+	status [][]byte
 	buf    bytes.Buffer
 	esc    []byte
 
@@ -95,7 +96,7 @@ type Screen struct {
 
 var ramp = []rune(" .`',:;\"~-+=<>ilv1cxjtfLCJUYXZO0Qoahkbdpqwm*WMB8&%$#@")
 
-// NewScreen reserves the last terminal row for the status line.
+// NewScreen reserves the last row or two for the status area.
 func NewScreen(cols, rows int, style Style, mode theme.Mode) *Screen {
 	s := &Screen{style: style, mode: mode}
 	s.Resize(cols, rows)
@@ -110,7 +111,14 @@ func (s *Screen) Resize(cols, rows int) {
 		rows = 4
 	}
 	s.Cols, s.Rows = cols, rows
-	s.artRows = rows - 1
+
+	// Two rows when there is height to spare, so the key hints get a line of
+	// their own instead of competing with the flight information.
+	s.statusRows = 2
+	if rows < 10 {
+		s.statusRows = 1
+	}
+	s.artRows = rows - s.statusRows
 
 	ph := s.artRows
 	if s.style == StyleHalfBlock {
@@ -127,10 +135,11 @@ func (s *Screen) Resize(cols, rows int) {
 	s.full = true
 }
 
-func (s *Screen) Canvas() *Canvas    { return s.canvas }
-func (s *Screen) ArtRows() int       { return s.artRows }
-func (s *Screen) SetStatus(b []byte) { s.status = b }
-func (s *Screen) Invalidate()        { s.full = true }
+func (s *Screen) Canvas() *Canvas      { return s.canvas }
+func (s *Screen) ArtRows() int         { return s.artRows }
+func (s *Screen) StatusRows() int      { return s.statusRows }
+func (s *Screen) SetStatus(l [][]byte) { s.status = l }
+func (s *Screen) Invalidate()          { s.full = true }
 
 func lum(c theme.RGB) float64 {
 	return (0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)) / 255
@@ -211,12 +220,17 @@ func (s *Screen) Flush() []byte {
 		}
 	}
 
-	// The status line is one row and changes constantly, so always repaint it.
-	s.buf.WriteString("\x1b[0m\x1b[")
-	s.buf.WriteString(strconv.Itoa(s.Rows))
-	s.buf.WriteString(";1H\x1b[2K")
-	s.buf.Write(s.status)
-	s.buf.WriteString("\x1b[0m")
+	// The status area is a row or two and changes constantly, so it is always
+	// repainted rather than diffed.
+	for i := 0; i < s.statusRows; i++ {
+		s.buf.WriteString("\x1b[0m\x1b[")
+		s.buf.WriteString(strconv.Itoa(s.artRows + 1 + i))
+		s.buf.WriteString(";1H\x1b[2K")
+		if i < len(s.status) {
+			s.buf.Write(s.status[i])
+		}
+		s.buf.WriteString("\x1b[0m")
+	}
 
 	s.prev, s.cur = s.cur, s.prev
 	s.full = false

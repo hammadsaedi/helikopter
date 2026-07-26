@@ -95,7 +95,10 @@ func (t *Term) EnterAlt() {
 	if t.inAlt {
 		return
 	}
-	t.write("\x1b[?1049h\x1b[?25l\x1b[2J")
+	// ?7l disables auto-wrap. Without it, a single character too many on any
+	// row wraps and scrolls the whole alternate screen, which corrupts every
+	// subsequent differential update.
+	t.write("\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[2J")
 	t.inAlt = true
 }
 
@@ -103,7 +106,7 @@ func (t *Term) ExitAlt() {
 	if !t.inAlt {
 		return
 	}
-	t.write("\x1b[0m\x1b[?25h\x1b[?1049l")
+	t.write("\x1b[0m\x1b[?7h\x1b[?25h\x1b[?1049l")
 	t.inAlt = false
 }
 
