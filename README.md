@@ -94,6 +94,7 @@ helikopter --idle-after 5m      fly for five minutes, then settle into idle
 | `t`       | next theme                  |
 | `m`       | mute / unmute               |
 | `i`       | toggle idle                 |
+| `w`       | hold the machine awake, or stop |
 | `+` / `-` | resize the helicopter       |
 
 ### Flags
@@ -167,7 +168,7 @@ line says `awake unavailable` rather than pretending.
 helikopter --idle               # wake lock only, no animation
 helikopter --idle -d 2h         # ...for two hours
 helikopter --no-display         # block system sleep but let the screen off
-helikopter --no-awake           # animation only, no wake lock
+helikopter --no-awake           # animation only, no wake lock (press w to take it)
 ```
 
 You can confirm it is real:

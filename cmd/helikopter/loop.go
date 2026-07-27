@@ -25,8 +25,16 @@ type state struct {
 
 	awakeNote string
 	soundNote string
-	player    *audio.Player
-	silence   bool
+
+	// The wake lock is held by the state rather than by run(), so it can be
+	// dropped and retaken while flying instead of only at startup.
+	lock      awake.Lock
+	awakeOpts awake.Options
+	wantAwake bool
+	// acquire is a seam for tests; production always uses awake.Acquire.
+	acquire func(awake.Options) (awake.Lock, error)
+	player  *audio.Player
+	silence bool
 
 	themeNames []string
 	total      time.Duration
@@ -227,6 +235,8 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			case 'i', 'I':
 				s.idle = !s.idle
 				sync()
+			case 'w', 'W':
+				s.toggleAwake()
 			case '+', '=':
 				s.resize(0.04)
 			case '-', '_':
@@ -304,6 +314,46 @@ func (s *state) nextTheme(step int) {
 	s.scene.Theme = t
 	s.scene.Reset()
 	s.screen.Invalidate()
+}
+
+// setAwake takes or drops the wake lock. Releasing is what actually lets the
+// machine sleep again: holding it is the entire point of the program, so
+// leaving it held after the user has asked for sleep would be a lie.
+func (s *state) setAwake(on bool) {
+	if s.lock != nil {
+		s.lock.Release()
+		s.lock = nil
+	}
+	s.wantAwake = on
+	if !on {
+		s.awakeNote = "off"
+		return
+	}
+
+	acq := s.acquire
+	if acq == nil {
+		acq = awake.Acquire
+	}
+	l, err := acq(s.awakeOpts)
+	if err != nil {
+		// Say so rather than claiming a lock we do not hold.
+		s.wantAwake = false
+		s.awakeNote = "unavailable"
+		return
+	}
+	s.lock = l
+	s.awakeNote = "on"
+}
+
+func (s *state) toggleAwake() { s.setAwake(!s.wantAwake) }
+
+// releaseAwake drops the lock for good, on the way out.
+func (s *state) releaseAwake() {
+	if s.lock != nil {
+		s.lock.Release()
+		s.lock = nil
+	}
+	s.wantAwake = false
 }
 
 // suspended reports whether the animation is frozen, whether by pause or by
@@ -524,12 +574,13 @@ func (s *state) keySegs() [][][]seg {
 	}
 
 	return [][][]seg{
-		join(k("q", "quit"), k("t", "next theme"), k("m", "mute"),
+		join(k("q", "quit"), k("t", "next theme"), k("m", "mute"), k("w", "awake"),
 			k("space", "pause"), k("i", "idle"), k("+ / -", "resize")),
-		join(k("q", "quit"), k("t", "theme"), k("m", "mute"),
+		join(k("q", "quit"), k("t", "theme"), k("m", "mute"), k("w", "awake"),
 			k("space", "pause"), k("i", "idle")),
-		join(k("q", "quit"), k("t", "theme"), k("m", "mute"), k("i", "idle")),
-		join(k("q", "quit"), k("t", "theme")),
+		join(k("q", "quit"), k("t", "theme"), k("m", "mute"), k("w", "awake"),
+			k("i", "idle")),
+		join(k("q", "quit"), k("t", "theme"), k("w", "awake")),
 		join(k("q", "quit")),
 	}
 }
