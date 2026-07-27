@@ -51,8 +51,11 @@ type state struct {
 	super  int
 	size   float64
 
-	started time.Time
-	clock   float64 // animation time, frozen while paused
+	// clock is flight time: it advances only while the helicopter is actually
+	// flying, and is what both the animation and the status line are driven
+	// from. Wall-clock time since launch would keep counting through a pause,
+	// so a run paused at 02:15 would resume somewhere past 02:16.
+	clock float64
 }
 
 func (s *state) colorMode() theme.Mode {
@@ -159,7 +162,6 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 	housekeep.Stop()
 	var slow <-chan time.Time
 
-	s.started = time.Now()
 	lastSize := time.Now()
 	lastFrame := time.Now()
 	var renderEMA time.Duration
@@ -191,7 +193,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			s.scene.Reset()
 		}
 		s.syncAudio()
-		s.drawFrame(time.Since(s.started))
+		s.drawFrame()
 	}
 
 	for {
@@ -213,7 +215,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			// Suspended: the only thing worth watching for is a resize.
 			if cols, rows := s.tm.Size(); cols != s.screen.Cols || rows != s.screen.Rows {
 				s.applyResize(cols, rows)
-				s.drawFrame(time.Since(s.started))
+				s.drawFrame()
 			}
 
 		case k, ok := <-keys:
@@ -244,7 +246,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			}
 			if s.suspended() {
 				// Redraw once so the change is visible without resuming.
-				s.drawFrame(time.Since(s.started))
+				s.drawFrame()
 			}
 
 		case <-tick:
@@ -261,7 +263,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			lastFrame = now
 
 			t0 := time.Now()
-			s.drawFrame(now.Sub(s.started))
+			s.drawFrame()
 			cost := time.Since(t0)
 
 			// Keep the frame inside its budget by trading away supersampling
@@ -393,9 +395,15 @@ func (s *state) syncAudio() {
 	}
 }
 
-func (s *state) drawFrame(elapsed time.Duration) {
+// flightTime is how long the helicopter has been flying, which is not how long
+// the program has been running: pausing and idling stop it.
+func (s *state) flightTime() time.Duration {
+	return time.Duration(s.clock * float64(time.Second))
+}
+
+func (s *state) drawFrame() {
 	s.scene.Render(s.screen.Canvas(), s.clock)
-	s.screen.SetStatus(s.statusBar(elapsed))
+	s.screen.SetStatus(s.statusBar(s.flightTime()))
 	os.Stdout.Write(s.screen.Flush())
 }
 
@@ -666,7 +674,9 @@ func dim(c theme.RGB) theme.RGB {
 }
 
 func fmtDur(d time.Duration) string {
-	d = d.Round(time.Second)
+	// Truncated, not rounded: an elapsed timer should never claim a second
+	// that has not passed. Rounding shows 00:01 at six tenths of a second.
+	d = d.Truncate(time.Second)
 	h := int(d.Hours())
 	m := int(d.Minutes()) % 60
 	sec := int(d.Seconds()) % 60
