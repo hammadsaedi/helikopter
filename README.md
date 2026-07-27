@@ -416,6 +416,12 @@ so the tool works without them either way.
 ## Development
 
 ```sh
+make release VERSION=v1.2.3   # cut a release; see RELEASING.md
+```
+
+Or from GitHub: Actions → *release* → *Run workflow*. Both run the same checks.
+
+```sh
 make build      # build ./helikopter
 make test       # go test ./... -race
 make lint       # gofmt + go vet
