@@ -6,28 +6,28 @@
 class Helikopter < Formula
   desc "Helicopter for your terminal that keeps your machine awake"
   homepage "https://github.com/hammadsaedi/helikopter"
-  version "1.1.1"
+  version "1.1.2"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_darwin_arm64.tar.gz"
-      sha256 "9f38f45334ad6286353b029556d4b6f6bbeacf4c46a5a7070a67538a45ec992c"
+      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.2/helikopter_1.1.2_darwin_arm64.tar.gz"
+      sha256 "c7d70789df7dbece26cce5d035389005626d510156108dcb46907b0c35849fb1"
     end
     on_intel do
-      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_darwin_amd64.tar.gz"
-      sha256 "5606939ec6f7bfae842b93ccc06bcdafc4612a8a035010ea916e86581c8ef62a"
+      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.2/helikopter_1.1.2_darwin_amd64.tar.gz"
+      sha256 "afc9d983cb23ca68365d265f97726afcc713501d42e0471f3fdc5828f89bd1fe"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_linux_arm64.tar.gz"
-      sha256 "383067a4c51149aad7a9d663132530328827d35a82011865b578e3a93373b887"
+      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.2/helikopter_1.1.2_linux_arm64.tar.gz"
+      sha256 "33d3f7b4480d726b0ec31c250431bacb4acc7781a7a2500bd985091cf4e80476"
     end
     on_intel do
-      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_linux_amd64.tar.gz"
-      sha256 "017a197211b815089db0187712adf6cffb9dee3150629dec24d51b27625df292"
+      url "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.2/helikopter_1.1.2_linux_amd64.tar.gz"
+      sha256 "9ce67b6ead0344e15f33212317a1cb36fdbc81e99e3d7d7eae98637ab0e9c441"
     end
   end
 

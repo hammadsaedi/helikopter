@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: hammadsaedi.helikopter
+PackageVersion: 1.1.2
+PackageLocale: en-US
+Publisher: Hammad Saeedi
+PublisherUrl: https://github.com/hammadsaedi
+PublisherSupportUrl: https://github.com/hammadsaedi/helikopter/issues
+Author: Hammad Saeedi
+PackageName: helikopter
+PackageUrl: https://github.com/hammadsaedi/helikopter
+License: MIT
+LicenseUrl: https://github.com/hammadsaedi/helikopter/blob/main/LICENSE
+ShortDescription: A helicopter flies in your terminal, and keeps your machine awake while it does.
+Description: |-
+  helikopter draws a shaded, animated helicopter in your terminal and holds an
+  operating-system wake lock for as long as it runs, so the display and the
+  machine stay awake.
+
+  The airframe is a parametric model rasterised to whatever size the terminal
+  is, so it stays sharp from 80x24 to full screen. Eight themes colour the whole
+  scene. Without Unicode or colour it falls back to line art rather than a
+  degraded copy of the colour render.
+
+  Idle and paused cost no measurable CPU, so it can be left running.
+Moniker: helikopter
+Tags:
+  - cli
+  - terminal
+  - animation
+  - ascii-art
+  - keep-awake
+  - screensaver
+ReleaseNotesUrl: https://github.com/hammadsaedi/helikopter/releases/tag/v1.1.2
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
