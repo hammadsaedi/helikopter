@@ -54,6 +54,8 @@ type options struct {
 	seed     int64
 	snapshot bool
 
+	checkUpdate bool
+
 	showVersion bool
 }
 
@@ -115,6 +117,8 @@ func parseFlags() *options {
 
 	flag.Int64Var(&o.seed, "seed", 0, "scenery seed (0 = random)")
 	flag.BoolVar(&o.snapshot, "snapshot", false, "print one frame and exit")
+	flag.BoolVar(&o.checkUpdate, "check-update", false,
+		"ask GitHub whether a newer release exists, and exit")
 
 	boolVar(&o.showVersion, []string{"version", "v"}, "print version and exit")
 
@@ -164,6 +168,7 @@ flags:
 
       --seed N         scenery seed (0 = random)
       --snapshot       print one frame and exit
+      --check-update   ask whether a newer release exists, and exit
   -v, --version        print version and exit
 
 keys:
@@ -183,6 +188,8 @@ func run() error {
 	case o.showVersion:
 		fmt.Printf("helikopter %s (%s, built %s)\n", version, commit, date)
 		return nil
+	case o.checkUpdate:
+		return checkUpdate()
 	case o.listThemes:
 		for _, t := range theme.All() {
 			marker := "  "

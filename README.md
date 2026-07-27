@@ -73,6 +73,35 @@ published `checksums.txt`, and drop it in `~/.local/bin` (or
 `%LOCALAPPDATA%\helikopter\bin`). Override with `HELIKOPTER_BIN_DIR`, pin a build
 with `HELIKOPTER_VERSION`.
 
+## Updating
+
+```sh
+helikopter --check-update
+```
+
+That asks GitHub whether a newer release exists and prints how to get it.
+Nothing checks on its own: a program that sits still and costs nothing has no
+business making network calls you did not ask for.
+
+To update, re-run whichever route you installed with — the installers overwrite
+in place, so this is also how to repair a damaged binary:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+```
+```powershell
+irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+```
+```sh
+brew upgrade helikopter
+scoop update helikopter
+winget upgrade hammadsaedi.helikopter
+go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
+```
+
+To uninstall, delete the binary. It writes no config and leaves nothing behind;
+its temp WAV goes when the process does.
+
 ## Usage
 
 ```
@@ -119,6 +148,7 @@ helikopter --idle-after 5m      fly for five minutes, then settle into idle
 | `--no-display`    |           | let the screen sleep; block system idle sleep only |
 | `--seed`          | random    | scenery seed                                       |
 | `--snapshot`      |           | print one frame and exit                           |
+| `--check-update`  |           | ask whether a newer release exists, and exit       |
 
 ## Themes
 
