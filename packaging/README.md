@@ -3,10 +3,14 @@
 Manifests for the package managers, plus the script that regenerates them.
 
 ```sh
-packaging/bump.sh v1.0.1
+packaging/bump.sh v1.1.1
 ```
 
-Run it after a release is published. Every hash is read from that release's own
+**This runs itself.** The release workflow regenerates the manifests and commits
+them after each tag, because every value in them — including all ten hashes —
+is derived from the release that was just published. There is no judgement in
+it, so there is nothing for a person to review. Run it by hand only to
+regenerate out of band. Every hash is read from that release's own
 `checksums.txt`, so the manifests cannot disagree with what shipped. The files
 are written out whole rather than patched, because editing a hash by its
 position in a file is the kind of mistake that ships quietly.
@@ -40,6 +44,17 @@ winget validate --manifest packaging/winget/manifests/h/hammadsaedi/helikopter/1
 ```sh
 winget install hammadsaedi.helikopter
 ```
+
+## Where this is going
+
+The manifests in this directory are a staging area. What actually reaches
+anyone is the tap repository, the bucket repository and the winget submission,
+and none of those exist yet. Once the tap and bucket do, the release workflow
+should push to them directly and these copies can go: a file that is generated,
+committed and then never read is just somewhere for the truth to drift.
+
+winget stays a submission, since it is a pull request against a repository
+nobody here owns.
 
 ## What packaging does not fix
 

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: hammadsaedi.helikopter
+PackageVersion: 1.1.1
+InstallerType: zip
+NestedInstallerType: portable
+UpgradeBehavior: uninstallPrevious
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_windows_amd64.zip
+    InstallerSha256: D08224133A3F38509175E2D47820106BCA233953B01B664503BDF24CCD677384
+    NestedInstallerFiles:
+      - RelativeFilePath: helikopter.exe
+        PortableCommandAlias: helikopter
+  - Architecture: arm64
+    InstallerUrl: https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_windows_arm64.zip
+    InstallerSha256: 47FD7A005C106E27480EDB481DB3599415572FA90D42DCFB7ADD428E324D72A3
+    NestedInstallerFiles:
+      - RelativeFilePath: helikopter.exe
+        PortableCommandAlias: helikopter
+  - Architecture: x86
+    InstallerUrl: https://github.com/hammadsaedi/helikopter/releases/download/v1.1.1/helikopter_1.1.1_windows_386.zip
+    InstallerSha256: 03A08617D52F9A1F12ADDB929ABA3EA3573C08F192140126D043CCFA8B1F1189
+    NestedInstallerFiles:
+      - RelativeFilePath: helikopter.exe
+        PortableCommandAlias: helikopter
+ManifestType: installer
+ManifestVersion: 1.6.0
