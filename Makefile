@@ -23,8 +23,10 @@ bench:
 	go test ./internal/render -bench . -benchmem -run '^$$'
 
 # Write one PNG per theme so the art can be reviewed as pixels.
+# The path is absolute because `go test` runs in the package directory, so a
+# relative one lands inside internal/render rather than here.
 preview:
-	HELIKOPTER_PREVIEW=$(or $(OUT),./preview) go test ./internal/render -run Preview -count=1
+	HELIKOPTER_PREVIEW=$(abspath $(or $(OUT),preview)) go test ./internal/render -run Preview -count=1
 
 fly: build
 	./$(BIN)
