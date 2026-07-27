@@ -1,9 +1,13 @@
+//go:build !windows
+
+// The stand-in backend is a shell script driving procEngine, neither of which
+// exists on Windows, where playback goes through winmm in-process.
+
 package audio
 
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -13,9 +17,6 @@ import (
 // time it is launched, so the test can count launches.
 func newFakePlayer(t *testing.T) (*Player, string) {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("the stand-in backend is a shell script")
-	}
 	dir := t.TempDir()
 	log := filepath.Join(dir, "launches")
 	wav := filepath.Join(dir, "helikopter.wav")
@@ -28,16 +29,13 @@ func newFakePlayer(t *testing.T) (*Player, string) {
 	}
 	return &Player{
 		path: wav,
-		backend: backend{
-			name: "fake",
-			bin:  "/bin/sh",
-			args: func(p string) []string {
+		eng: &procEngine{
+			label: "fake",
+			bin:   "/bin/sh",
+			args: func(string) []string {
 				return []string{"-c", "echo launched >> " + log + "; sleep 30"}
 			},
 		},
-		wake: make(chan struct{}, 1),
-		quit: make(chan struct{}),
-		done: make(chan struct{}),
 	}, log
 }
 
