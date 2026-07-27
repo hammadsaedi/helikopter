@@ -4,7 +4,7 @@ COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
-.PHONY: build install test lint fly clean preview
+.PHONY: build install test lint fly clean preview gif
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/helikopter
@@ -27,6 +27,10 @@ bench:
 # relative one lands inside internal/render rather than here.
 preview:
 	HELIKOPTER_PREVIEW=$(abspath $(or $(OUT),preview)) go test ./internal/render -run Preview -count=1
+
+# Regenerate the README demo and the social preview card.
+gif:
+	HELIKOPTER_GIF=$(abspath $(or $(OUT),docs)) go test ./internal/render -run 'WriteGIF|WriteSocial' -count=1 -v
 
 fly: build
 	./$(BIN)
