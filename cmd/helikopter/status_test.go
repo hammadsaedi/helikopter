@@ -87,11 +87,22 @@ func TestStatusBarDegradesGracefully(t *testing.T) {
 		t.Errorf("even a 30-column status bar should name the program: %q", narrow)
 	}
 
-	// The width from the bug report: the full key hint must survive there.
-	for _, want := range []string{"q quit", "t next theme", "m mute",
-		"space pause", "i idle", "+ / - resize"} {
-		if !contains(mk(78), want) {
-			t.Errorf("a 78-column status area should show %q, got:\n%s", want, mk(78))
+	// The width from the original bug report. The fullest hint no longer fits
+	// there, so the layout drops to a shorter form — but every key must still
+	// be reachable, because a hint that hides a key is worse than no hint.
+	at78 := mk(78)
+	for _, want := range []string{"q quit", "t theme", "m mute", "w awake",
+		"space pause", "i idle"} {
+		if !contains(at78, want) {
+			t.Errorf("a 78-column status area should show %q, got:\n%s", want, at78)
+		}
+	}
+
+	// Given room, the fullest form comes back.
+	at120 := mk(120)
+	for _, want := range []string{"t next theme", "w awake", "+ / - resize"} {
+		if !contains(at120, want) {
+			t.Errorf("a 120-column status area should show %q, got:\n%s", want, at120)
 		}
 	}
 }

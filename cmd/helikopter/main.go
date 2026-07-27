@@ -175,7 +175,8 @@ flags:
 
 keys:
   q, Ctrl-C  quit          t  next theme      m  mute / unmute
-  space      pause         i  toggle idle     + / -  resize the helicopter
+  space      pause         i  toggle idle     w  hold the machine awake, or stop
+  + / -      resize the helicopter
 
   Pause and idle both stop the sound and stop redrawing, so a paused
   helikopter costs the same as --idle: nothing.
@@ -291,19 +292,6 @@ func run() error {
 		return runIdle(o, total, !tm.IsTTY())
 	}
 
-	// A wake lock is the whole point, so take it before anything that can fail.
-	lock := awake.Noop()
-	awakeNote := "off"
-	if !o.noWakeLock {
-		l, err := awake.Acquire(awake.Options{Display: !o.noDisplay})
-		if err != nil {
-			awakeNote = "unavailable"
-		} else {
-			lock, awakeNote = l, "on"
-		}
-	}
-	defer lock.Release()
-
 	var player *audio.Player
 	soundNote := "off"
 	if !o.silence {
@@ -333,11 +321,16 @@ func run() error {
 
 	st := &state{
 		opts: o, theme: th, tm: tm,
-		awakeNote: awakeNote, soundNote: soundNote,
-		player: player, silence: o.silence,
+		soundNote: soundNote,
+		player:    player, silence: o.silence,
 		themeNames: names,
 		total:      total, idleAfter: idleAfter,
+		awakeOpts: awake.Options{Display: !o.noDisplay},
 	}
+
+	// A wake lock is the whole point, so take it before anything that can fail.
+	st.setAwake(!o.noWakeLock)
+	defer st.releaseAwake()
 
 	return st.runAnimated(sig)
 }
