@@ -84,6 +84,56 @@ published `checksums.txt`, and drop it in `~/.local/bin` (or
 `%LOCALAPPDATA%\helikopter\bin`). Override with `HELIKOPTER_BIN_DIR`, pin a build
 with `HELIKOPTER_VERSION`.
 
+## Updating
+
+```sh
+helikopter update           # replace this binary with the latest release
+helikopter update --check   # say whether an update exists, change nothing
+```
+
+`update` downloads the release for your platform, verifies it against the
+published checksum, **runs it to confirm it works**, and only then swaps it in.
+If any of that fails, nothing is changed and the command you have keeps
+working — a self-update that leaves you with no working binary is worse than
+one that declines.
+
+It will not escalate privileges. If the binary lives somewhere you cannot write
+to, it says so and points at whatever installed it rather than asking for a
+password from inside an animation.
+
+Nothing checks on its own. There is no startup check and no background poll: a
+program whose claim is that it sits still and costs nothing has no business
+making network calls you did not ask for.
+
+The installers also still upgrade in place, which is the route to take if the
+binary is somewhere privileged:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+```
+```powershell
+irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+```
+```sh
+brew upgrade helikopter
+scoop update helikopter
+winget upgrade hammadsaedi.helikopter
+go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
+```
+
+To uninstall, delete the binary. It writes no config and leaves nothing behind;
+its temp WAV goes when the process does.
+
+## Commands
+
+```
+helikopter                  fly
+helikopter update [--check] update to the latest release
+helikopter version          print version
+helikopter themes           list the themes
+helikopter help             the full flag list
+```
+
 ## Usage
 
 ```
