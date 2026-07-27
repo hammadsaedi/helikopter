@@ -2,6 +2,10 @@
 
 A helicopter flies in your terminal. While it flies, your machine stays awake.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="A red helicopter hovering over scrolling terrain in a terminal, rotor blurred, at dusk" width="600">
+</p>
+
 ```
 curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
 helikopter
@@ -332,7 +336,15 @@ To look at the art as pixels rather than escape codes:
 
 ```sh
 make preview OUT=./preview     # one PNG per theme
+make gif                       # regenerate docs/demo.gif and docs/social.png
 ```
+
+The demo above is rendered by the program itself rather than screen-recorded:
+frames come out of the renderer at true terminal resolution — 200 columns by 46
+rows — and are scaled by whole pixels, so what you see is exactly what the
+terminal draws. The palette is median cut over sampled frames, because a fixed
+palette bands the sky and a popularity palette spends every entry on it, the
+sky being most of the picture.
 
 ## Sound
 
