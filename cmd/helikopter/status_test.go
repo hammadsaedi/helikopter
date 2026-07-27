@@ -158,3 +158,68 @@ func TestSuspendedCoversPauseAndIdle(t *testing.T) {
 		}
 	}
 }
+
+// The status timer must show flight time, not wall-clock time since launch.
+// Pausing at 02:15 and resuming used to continue from wherever real time had
+// got to, because the display and the animation were reading different clocks.
+func TestStatusTimeIsFlightTimeNotWallClock(t *testing.T) {
+	th, _ := theme.Get("crimson")
+	show := func(clock float64) string {
+		s := &state{
+			theme: th, mode: theme.ModeNone,
+			awakeNote: "on", soundNote: "on", clock: clock,
+			screen: render.NewScreen(140, 24, render.StyleHalfBlock, theme.ModeNone),
+		}
+		return joinLines(s.statusBar(s.flightTime()))
+	}
+
+	for clock, want := range map[float64]string{
+		0:     "00:00",
+		135:   "02:15",
+		135.9: "02:15", // truncated toward the second that has elapsed
+		3725:  "1:02:05",
+	} {
+		if got := show(clock); !contains(got, want) {
+			t.Errorf("clock=%.1f should display %q, got: %s", clock, want, got)
+		}
+	}
+
+	// Resuming continues from where it paused rather than jumping: the clock
+	// is the only input, so a paused state redraws the same time however long
+	// the pause lasted.
+	paused := &state{
+		theme: th, mode: theme.ModeNone, paused: true,
+		awakeNote: "on", soundNote: "paused", clock: 135,
+		screen: render.NewScreen(140, 24, render.StyleHalfBlock, theme.ModeNone),
+	}
+	first := joinLines(paused.statusBar(paused.flightTime()))
+	time.Sleep(1100 * time.Millisecond)
+	second := joinLines(paused.statusBar(paused.flightTime()))
+	if first != second {
+		t.Errorf("a paused status line changed over a second of real time:\n%s\n%s", first, second)
+	}
+	if !contains(first, "02:15") || !contains(first, "paused") {
+		t.Errorf("expected a paused line at 02:15, got: %s", first)
+	}
+}
+
+func TestFlightTimeConversion(t *testing.T) {
+	for clock, want := range map[float64]time.Duration{
+		0:    0,
+		1:    time.Second,
+		90.5: 90500 * time.Millisecond,
+	} {
+		s := &state{clock: clock}
+		if got := s.flightTime(); got != want {
+			t.Errorf("clock=%v -> %v, want %v", clock, got, want)
+		}
+	}
+}
+
+func joinLines(lines [][]byte) string {
+	var out string
+	for _, l := range lines {
+		out += string(ansi.ReplaceAll(l, nil)) + "\n"
+	}
+	return out
+}
