@@ -22,16 +22,42 @@ $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
 }
 $platform = "windows_$arch"
 
-$version = $env:HELIKOPTER_VERSION
-if (-not $version) {
-    # Follow the /releases/latest redirect rather than calling the API, which
-    # is rate limited for unauthenticated callers.
-    $resp = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" `
-        -MaximumRedirection 0 -ErrorAction SilentlyContinue
-    $loc = $resp.Headers.Location
-    if (-not $loc) { Die 'could not determine the latest version' }
-    $version = ($loc -split '/')[-1]
+function Get-LatestVersion {
+    # The release API returns the tag directly and behaves the same on Windows
+    # PowerShell and PowerShell 7.
+    try {
+        $api = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" `
+            -Headers @{ 'User-Agent' = 'helikopter-installer' }
+        if ($api.tag_name) { return $api.tag_name }
+    } catch {
+        # Unauthenticated API calls are rate limited per address, so fall
+        # through to the redirect, which costs no quota.
+    }
+
+    # /releases/latest redirects to the tag. PowerShell 7 raises the 302 as a
+    # terminating error instead of returning the response, so the Location has
+    # to be read off the exception; Windows PowerShell returns it normally.
+    $loc = $null
+    try {
+        $resp = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" `
+            -MaximumRedirection 0 -ErrorAction Stop
+        $loc = $resp.Headers.Location
+    } catch {
+        $r = $_.Exception.Response
+        if ($r) {
+            try { $loc = $r.Headers.Location } catch { }
+            if (-not $loc) { try { $loc = $r.Headers['Location'] } catch { } }
+        }
+    }
+    # A string on Windows PowerShell, a string array or Uri on PowerShell 7.
+    if ($loc -is [array]) { $loc = $loc[0] }
+    if ($loc) { return ($loc.ToString().TrimEnd('/') -split '/')[-1] }
+    return $null
 }
+
+$version = $env:HELIKOPTER_VERSION
+if (-not $version) { $version = Get-LatestVersion }
+if (-not $version) { Die 'could not determine the latest version' }
 
 Write-Host ''
 Info "installing $Bin $version for $platform"
@@ -67,13 +93,40 @@ try {
     if (-not $dir) { $dir = Join-Path $env:LOCALAPPDATA 'helikopter\bin' }
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
 
-    Copy-Item (Join-Path $tmp "$Bin.exe") (Join-Path $dir "$Bin.exe") -Force
-    Info "installed to $dir\$Bin.exe"
+    $exe = Join-Path $dir "$Bin.exe"
+    Copy-Item (Join-Path $tmp "$Bin.exe") $exe -Force
 
+    # Anything fetched over the web carries a Zone.Identifier stream marking it
+    # as internet-sourced, and Expand-Archive passes that on to what it
+    # extracts. SmartScreen then warns about an unrecognised publisher every
+    # time the binary runs. The download came from a release whose checksum was
+    # just verified above, so clear the mark.
+    #
+    # This does not satisfy Smart App Control, which requires a signature no
+    # matter where the file came from. See the README on code signing.
+    Unblock-File -Path $exe -ErrorAction SilentlyContinue
+
+    Info "installed to $exe"
+
+    # Persist the directory for future sessions. Split on ';' and compare whole
+    # entries rather than substrings: a -like '*dir*' test matches a longer path
+    # that merely starts the same, and appending blindly to an empty or
+    # trailing-';' PATH leaves empty segments behind.
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    if ($userPath -notlike "*$dir*") {
-        [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User')
-        Info "added $dir to your PATH (restart your shell to pick it up)"
+    $parts = @()
+    if ($userPath) { $parts = @($userPath -split ';' | Where-Object { $_ -ne '' }) }
+    if ($parts -notcontains $dir) {
+        [Environment]::SetEnvironmentVariable('Path', (($parts + $dir) -join ';'), 'User')
+        Info "added $dir to your PATH"
+    }
+
+    # And update this session. SetEnvironmentVariable only writes the stored
+    # value; it does not touch the running process, so without this the very
+    # next command fails with "'helikopter' is not recognized" even though the
+    # install worked. This script is normally run through `irm | iex`, so the
+    # session being fixed is the one the user is typing into.
+    if (($env:Path -split ';') -notcontains $dir) {
+        $env:Path = "$env:Path;$dir"
     }
 } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

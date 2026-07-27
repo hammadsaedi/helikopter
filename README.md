@@ -36,6 +36,32 @@ curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install
 irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
 ```
 
+### Windows and unsigned binaries
+
+The released `helikopter.exe` is **not code-signed**, so Windows may object the
+first time it runs:
+
+> Part of this app has been blocked. Some features of Windows PowerShell may not
+> work because we can't confirm who published helikopter.exe.
+
+That is Windows reporting that it cannot identify a publisher, not that it found
+anything wrong. Two separate mechanisms are involved:
+
+- **SmartScreen** warns about files marked as downloaded from the internet. The
+  installer clears that mark with `Unblock-File` once it has verified the
+  checksum, so this should not appear when installing through it.
+- **Smart App Control**, on Windows 11, blocks unsigned executables regardless
+  of where they came from. Nothing an installer can do satisfies it; it needs an
+  Authenticode signature.
+
+Until the binaries are signed, the options are to build from source with
+`go install`, allow the binary in Windows Security → Protection history, or run
+`Unblock-File` on it yourself:
+
+```powershell
+Unblock-File "$env:LOCALAPPDATA\helikopter\bin\helikopter.exe"
+```
+
 **From source** — needs Go 1.26+:
 
 ```sh
