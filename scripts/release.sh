@@ -72,4 +72,4 @@ say "  https://github.com/$repo/actions"
 say "  https://github.com/$repo/releases/tag/$version"
 echo
 say "when it finishes, check it installs:"
-say "  curl -fsSL https://raw.githubusercontent.com/$repo/main/install.sh | sh"
+say "  curl -fsSL https://${repo%%/*}.github.io/${repo#*/}/install.sh | sh"

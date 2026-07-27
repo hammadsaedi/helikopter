@@ -50,7 +50,7 @@ The workflow does the rest, but two things are worth checking by hand, because
 CI cannot:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh | sh
 helikopter update            # from the previous version, confirm it upgrades
 ```
 

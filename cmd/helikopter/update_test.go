@@ -212,6 +212,19 @@ func TestUpdateHintOffersOnlyWorkingRoutes(t *testing.T) {
 	}
 }
 
+// The installers are served from the project site. raw.githubusercontent is the
+// same bytes, but it is the URL people are asked to pipe into a shell, and it is
+// blocked on networks where github.com is not.
+func TestUpdateHintUsesTheSiteURL(t *testing.T) {
+	h := updateHint()
+	if contains(h, "raw.githubusercontent.com") {
+		t.Errorf("the hint should point at the project site:\n%s", h)
+	}
+	if !contains(h, "https://hammadsaedi.github.io/helikopter/install.") {
+		t.Errorf("the hint must offer an installer URL:\n%s", h)
+	}
+}
+
 func indexOf(hay, needle string) int {
 	for i := 0; i+len(needle) <= len(hay); i++ {
 		if hay[i:i+len(needle)] == needle {

@@ -91,9 +91,9 @@ func updateHint() string {
 	b.WriteString("  helikopter update\n\n")
 	b.WriteString("or, if this copy came from somewhere else:\n\n")
 	if runtime.GOOS == "windows" {
-		b.WriteString("  irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex\n")
+		b.WriteString("  irm https://hammadsaedi.github.io/helikopter/install.ps1 | iex\n")
 	} else {
-		b.WriteString("  curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh\n")
+		b.WriteString("  curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh | sh\n")
 	}
 	b.WriteString("  go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest\n")
 	return b.String()

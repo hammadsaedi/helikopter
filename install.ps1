@@ -1,6 +1,6 @@
 # helikopter installer for Windows
 #
-#   irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+#   irm https://hammadsaedi.github.io/helikopter/install.ps1 | iex
 #
 # Environment:
 #   HELIKOPTER_VERSION   tag to install (default: latest release)
@@ -10,6 +10,10 @@ $ErrorActionPreference = 'Stop'
 
 $Repo = 'hammadsaedi/helikopter'
 $Bin  = 'helikopter'
+
+# Stamped with the tag in the copy attached to each release; empty on main,
+# where the default is the latest release.
+$Pinned = ''
 
 function Info($m) { Write-Host "  $m" }
 function Die($m)  { Write-Error $m; exit 1 }
@@ -56,6 +60,7 @@ function Get-LatestVersion {
 }
 
 $version = $env:HELIKOPTER_VERSION
+if (-not $version) { $version = $Pinned }
 if (-not $version) { $version = Get-LatestVersion }
 if (-not $version) { Die 'could not determine the latest version' }
 
