@@ -69,3 +69,43 @@ jobs:
           windows 386
           freebsd amd64
           TARGETS
+
+  # The installers are how almost everyone will actually get this, and they are
+  # the one part that cannot be exercised by `go test`. This runs them for real
+  # against the latest published release, on every platform they claim to
+  # support, and then runs what they installed.
+  installers:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install.sh
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -eu
+          export HELIKOPTER_BIN_DIR="$HOME/hkbin"
+          sh ./install.sh
+          "$HELIKOPTER_BIN_DIR/helikopter" --version
+          "$HELIKOPTER_BIN_DIR/helikopter" --list-themes > /dev/null
+          "$HELIKOPTER_BIN_DIR/helikopter" --duration 2s --silence --no-awake
+
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:HELIKOPTER_BIN_DIR = "$env:USERPROFILE\hkbin"
+          # Dot-sourced, because `irm | iex` also runs in the caller's scope:
+          # the installer has to leave the command usable in *this* session.
+          . ./install.ps1
+
+          # Regression: SetEnvironmentVariable only writes the stored PATH, so
+          # without updating $env:Path too this fails with "not recognized"
+          # even though the install worked.
+          helikopter --version
+          helikopter --list-themes | Out-Null
+          helikopter --duration 2s --silence --no-awake

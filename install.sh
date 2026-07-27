@@ -91,12 +91,21 @@ main() {
 
   # Checksums are published alongside the archives; verify when we have a tool.
   if curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt" 2>/dev/null; then
+    # Written out rather than as `check && info || die`: in that form the die
+    # also runs if the info fails, which is not what is meant by a checksum
+    # failure.
     if command -v sha256sum >/dev/null 2>&1; then
-      ( cd "$tmp" && grep " $tarball\$" checksums.txt | sha256sum -c - >/dev/null 2>&1 ) \
-        && info "checksum ok" || die "checksum verification failed"
+      if ( cd "$tmp" && grep " $tarball\$" checksums.txt | sha256sum -c - >/dev/null 2>&1 ); then
+        info "checksum ok"
+      else
+        die "checksum verification failed"
+      fi
     elif command -v shasum >/dev/null 2>&1; then
-      ( cd "$tmp" && grep " $tarball\$" checksums.txt | shasum -a 256 -c - >/dev/null 2>&1 ) \
-        && info "checksum ok" || die "checksum verification failed"
+      if ( cd "$tmp" && grep " $tarball\$" checksums.txt | shasum -a 256 -c - >/dev/null 2>&1 ); then
+        info "checksum ok"
+      else
+        die "checksum verification failed"
+      fi
     else
       info "checksum skipped (no sha256sum or shasum)"
     fi

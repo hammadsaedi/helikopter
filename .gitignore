@@ -4,3 +4,5 @@
 /helikopter.exe
 *.test
 *.out
+/preview/
+internal/render/preview/
