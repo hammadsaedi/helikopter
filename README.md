@@ -309,11 +309,17 @@ meant sound on macOS and silence nearly everywhere else. It is also why
 
 Playback shells out to whatever the host already has:
 
-| platform | uses |
-| -------- | ---- |
-| macOS    | `afplay` |
-| Linux    | `paplay`, `pw-play`, `aplay`, `ffplay`, `mpv` or `play` |
-| Windows  | PowerShell `SoundPlayer.PlayLooping` |
+| platform | uses | process |
+| -------- | ---- | --- |
+| macOS    | `afplay` | relaunched each loop |
+| Linux    | `paplay`, `pw-play`, `aplay`, `ffplay`, `mpv` or `play` | relaunched each loop |
+| Windows  | `winmm.dll` `PlaySound`, in-process | none |
+
+Windows used to launch `powershell.exe` to drive `SoundPlayer`. It worked, but
+it was a poor thing for a downloaded binary to do — spawning a shell is a shape
+security tooling is right to be suspicious of — and it cost an entire extra
+process for a sound that loops itself. `PlaySound` loops natively inside this
+process, through the standard library, with no cgo.
 
 If none is found the status line says `sound unavailable` and it flies on in
 silence.
