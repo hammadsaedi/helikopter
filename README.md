@@ -76,15 +76,26 @@ with `HELIKOPTER_VERSION`.
 ## Updating
 
 ```sh
-helikopter --check-update
+helikopter update           # replace this binary with the latest release
+helikopter update --check   # say whether an update exists, change nothing
 ```
 
-That asks GitHub whether a newer release exists and prints how to get it.
-Nothing checks on its own: a program that sits still and costs nothing has no
-business making network calls you did not ask for.
+`update` downloads the release for your platform, verifies it against the
+published checksum, **runs it to confirm it works**, and only then swaps it in.
+If any of that fails, nothing is changed and the command you have keeps
+working — a self-update that leaves you with no working binary is worse than
+one that declines.
 
-To update, re-run whichever route you installed with — the installers overwrite
-in place, so this is also how to repair a damaged binary:
+It will not escalate privileges. If the binary lives somewhere you cannot write
+to, it says so and points at whatever installed it rather than asking for a
+password from inside an animation.
+
+Nothing checks on its own. There is no startup check and no background poll: a
+program whose claim is that it sits still and costs nothing has no business
+making network calls you did not ask for.
+
+The installers also still upgrade in place, which is the route to take if the
+binary is somewhere privileged:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
@@ -101,6 +112,16 @@ go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
 
 To uninstall, delete the binary. It writes no config and leaves nothing behind;
 its temp WAV goes when the process does.
+
+## Commands
+
+```
+helikopter                  fly
+helikopter update [--check] update to the latest release
+helikopter version          print version
+helikopter themes           list the themes
+helikopter help             the full flag list
+```
 
 ## Usage
 
@@ -148,7 +169,6 @@ helikopter --idle-after 5m      fly for five minutes, then settle into idle
 | `--no-display`    |           | let the screen sleep; block system idle sleep only |
 | `--seed`          | random    | scenery seed                                       |
 | `--snapshot`      |           | print one frame and exit                           |
-| `--check-update`  |           | ask whether a newer release exists, and exit       |
 
 ## Themes
 

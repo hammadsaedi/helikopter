@@ -54,8 +54,6 @@ type options struct {
 	seed     int64
 	snapshot bool
 
-	checkUpdate bool
-
 	showVersion bool
 }
 
@@ -117,8 +115,6 @@ func parseFlags() *options {
 
 	flag.Int64Var(&o.seed, "seed", 0, "scenery seed (0 = random)")
 	flag.BoolVar(&o.snapshot, "snapshot", false, "print one frame and exit")
-	flag.BoolVar(&o.checkUpdate, "check-update", false,
-		"ask GitHub whether a newer release exists, and exit")
 
 	boolVar(&o.showVersion, []string{"version", "v"}, "print version and exit")
 
@@ -138,6 +134,13 @@ func usage() {
 	fmt.Fprint(w, `helikopter — a helicopter for your terminal, and a wake lock for your machine
 
 usage: helikopter [flags]
+       helikopter <command>
+
+commands:
+  update [--check]     replace this binary with the latest release
+  version              print version and exit
+  themes               list the themes
+  help                 this text
 
   Runs until you press q or Ctrl-C. While it runs, the display and the system
   are held awake by a wake lock scoped to this process. Use --idle for the same
@@ -168,7 +171,6 @@ flags:
 
       --seed N         scenery seed (0 = random)
       --snapshot       print one frame and exit
-      --check-update   ask whether a newer release exists, and exit
   -v, --version        print version and exit
 
 keys:
@@ -181,23 +183,73 @@ keys:
 `)
 }
 
+// commands are the verbs helikopter accepts before any flags. Everything else
+// is the animation and its options.
+func dispatch(args []string) (handled bool, err error) {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return false, nil
+	}
+
+	switch args[0] {
+	case "update":
+		fs := flag.NewFlagSet("helikopter update", flag.ContinueOnError)
+		check := fs.Bool("check", false, "report whether an update exists, and change nothing")
+		fs.Usage = func() {
+			fmt.Fprint(fs.Output(), `usage: helikopter update [--check]
+
+  Replaces this binary with the latest release, after verifying its checksum
+  and confirming it runs. Nothing is changed if any of that fails.
+
+  --check   say whether an update exists, and change nothing
+`)
+		}
+		if err := fs.Parse(args[1:]); err != nil {
+			return true, err
+		}
+		if *check {
+			return true, checkUpdate()
+		}
+		return true, selfUpdate()
+
+	case "version":
+		fmt.Printf("helikopter %s (%s, built %s)\n", version, commit, date)
+		return true, nil
+
+	case "themes":
+		listThemes()
+		return true, nil
+
+	case "help":
+		usage()
+		return true, nil
+	}
+
+	return true, fmt.Errorf("unknown command %q\n\nTry: helikopter update | version | themes | help", args[0])
+}
+
+func listThemes() {
+	for _, t := range theme.All() {
+		marker := "  "
+		if t.Name == theme.DefaultName {
+			marker = "* "
+		}
+		fmt.Printf("%s%-9s %s\n", marker, t.Name, t.Desc)
+	}
+}
+
 func run() error {
+	if handled, err := dispatch(os.Args[1:]); handled {
+		return err
+	}
+
 	o := parseFlags()
 
 	switch {
 	case o.showVersion:
 		fmt.Printf("helikopter %s (%s, built %s)\n", version, commit, date)
 		return nil
-	case o.checkUpdate:
-		return checkUpdate()
 	case o.listThemes:
-		for _, t := range theme.All() {
-			marker := "  "
-			if t.Name == theme.DefaultName {
-				marker = "* "
-			}
-			fmt.Printf("%s%-9s %s\n", marker, t.Name, t.Desc)
-		}
+		listThemes()
 		return nil
 	}
 

@@ -75,3 +75,39 @@ func TestUpdateHintMentionsGoInstall(t *testing.T) {
 		t.Error("empty update hint")
 	}
 }
+
+func TestDispatchRecognisesCommands(t *testing.T) {
+	for _, args := range [][]string{{"version"}, {"themes"}, {"help"}} {
+		handled, err := dispatch(args)
+		if !handled {
+			t.Errorf("%v should be handled as a command", args)
+		}
+		if err != nil {
+			t.Errorf("%v returned %v", args, err)
+		}
+	}
+}
+
+func TestDispatchLeavesFlagsAndTheBareCommandAlone(t *testing.T) {
+	for _, args := range [][]string{{}, {"--theme", "night"}, {"-s"}, {"--idle"}} {
+		if handled, _ := dispatch(args); handled {
+			t.Errorf("%v is not a command and should fall through to the animation", args)
+		}
+	}
+}
+
+func TestDispatchRejectsUnknownCommands(t *testing.T) {
+	handled, err := dispatch([]string{"fly"})
+	if !handled {
+		t.Fatal("an unknown verb should be reported, not silently flown")
+	}
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	// The message has to say what is available, or the user is left guessing.
+	for _, want := range []string{"update", "version", "themes"} {
+		if !contains(err.Error(), want) {
+			t.Errorf("error should list %q: %v", want, err)
+		}
+	}
+}
