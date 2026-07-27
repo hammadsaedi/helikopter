@@ -40,16 +40,10 @@ curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install
 irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
 ```
 
-**Package managers**
-
-```sh
-brew install hammadsaedi/tap/helikopter    # macOS, Linux
-scoop install helikopter                   # Windows
-winget install hammadsaedi.helikopter      # Windows
-```
-
-Manifests live in [packaging/](packaging/); see that directory for the state of
-each channel.
+**Package managers** — not yet published. Manifests for Homebrew, Scoop and
+winget are ready in [packaging/](packaging/), but none of them are live, so
+`brew install helikopter` will not find anything. Use one of the routes above
+until they are.
 
 ### Windows and unsigned binaries
 
@@ -85,8 +79,26 @@ go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
 
 The installers download a static binary for your platform, verify it against the
 published `checksums.txt`, and drop it in `~/.local/bin` (or
-`%LOCALAPPDATA%\helikopter\bin`). Override with `HELIKOPTER_BIN_DIR`, pin a build
-with `HELIKOPTER_VERSION`.
+`%LOCALAPPDATA%\helikopter\bin`).
+
+**A particular version**, rather than the latest:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh \
+  | HELIKOPTER_VERSION=v1.1.0 sh
+```
+```powershell
+$env:HELIKOPTER_VERSION = "v1.1.0"
+irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+```
+
+The variable has to be on `sh`, not on `curl`. `HELIKOPTER_VERSION=v1.1.0 curl ...
+| sh` sets it for the download and not for the script, which then quietly
+installs the latest instead — no error, just the wrong version.
+
+**Somewhere else on disk**: `HELIKOPTER_BIN_DIR=/usr/local/bin`.
+
+Every released version stays available, so this is also how to go back to one.
 
 ## Updating
 
@@ -109,9 +121,6 @@ Nothing checks on its own. There is no startup check and no background poll: a
 program whose claim is that it sits still and costs nothing has no business
 making network calls you did not ask for.
 
-The installers also still upgrade in place, which is the route to take if the
-binary is somewhere privileged:
-
 ```sh
 curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
 ```
@@ -119,9 +128,6 @@ curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install
 irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
 ```
 ```sh
-brew upgrade helikopter
-scoop update helikopter
-winget upgrade hammadsaedi.helikopter
 go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
 ```
 
