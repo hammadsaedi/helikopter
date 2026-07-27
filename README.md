@@ -7,7 +7,7 @@ A helicopter flies in your terminal. While it flies, your machine stays awake.
 </p>
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh | sh
 helikopter
 ```
 
@@ -31,13 +31,13 @@ A screen-saver that keeps the screen *on*. Press `q` to land.
 **macOS / Linux / FreeBSD**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh | sh
 ```
 
 **Windows** (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+irm https://hammadsaedi.github.io/helikopter/install.ps1 | iex
 ```
 
 **Package managers** — not yet published. Manifests for Homebrew, Scoop and
@@ -84,17 +84,25 @@ published `checksums.txt`, and drop it in `~/.local/bin` (or
 **A particular version**, rather than the latest:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh \
+curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh \
   | HELIKOPTER_VERSION=v1.1.0 sh
 ```
 ```powershell
 $env:HELIKOPTER_VERSION = "v1.1.0"
-irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+irm https://hammadsaedi.github.io/helikopter/install.ps1 | iex
 ```
 
 The variable has to be on `sh`, not on `curl`. `HELIKOPTER_VERSION=v1.1.0 curl ...
 | sh` sets it for the download and not for the script, which then quietly
 installs the latest instead — no error, just the wrong version.
+
+That pins the binary but not the script, which is always whatever is on `main`.
+Every release from v1.1.3 also carries the installer as it stood at that tag,
+already defaulting to its own version, if you want both fixed:
+
+```sh
+curl -fsSL https://github.com/hammadsaedi/helikopter/releases/download/v1.1.3/install.sh | sh
+```
 
 **Somewhere else on disk**: `HELIKOPTER_BIN_DIR=/usr/local/bin`.
 
@@ -121,15 +129,22 @@ Nothing checks on its own. There is no startup check and no background poll: a
 program whose claim is that it sits still and costs nothing has no business
 making network calls you did not ask for.
 
+If this copy came from somewhere `update` cannot replace, re-run whichever of
+these installed it:
+
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh | sh
 ```
 ```powershell
-irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex
+irm https://hammadsaedi.github.io/helikopter/install.ps1 | iex
 ```
 ```sh
 go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest
 ```
+
+A binary built with `go install` reports its version as `dev`, because there is
+no tag baked into it. `update` declines on those rather than guess, and points
+you back at `go install`.
 
 To uninstall, delete the binary. It writes no config and leaves nothing behind;
 its temp WAV goes when the process does.

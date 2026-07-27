@@ -95,6 +95,14 @@ jobs:
           freebsd amd64
           TARGETS
 
+          # Attached so a version can be installed by a script of the same age.
+          # The copies on the website always track main, so these are stamped to
+          # default to their own tag instead of to the latest release.
+          sed "s|PINNED=\"\"|PINNED=\"${TAG}\"|"    install.sh  > dist/install.sh
+          sed "s|Pinned = ''|Pinned = '${TAG}'|"   install.ps1 > dist/install.ps1
+          grep -qF "PINNED=\"${TAG}\"" dist/install.sh  || { echo "install.sh was not stamped";  exit 1; }
+          grep -qF "Pinned = '${TAG}'" dist/install.ps1 || { echo "install.ps1 was not stamped"; exit 1; }
+
           (cd dist && sha256sum * > checksums.txt)
           ls -la dist
 

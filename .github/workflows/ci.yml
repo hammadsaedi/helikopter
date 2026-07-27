@@ -83,6 +83,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: installers are unpinned on main
+        shell: bash
+        run: |
+          set -eu
+          # Only the copies attached to a release carry a tag. A stamped one
+          # committed here would pin every new install to an old version.
+          grep -qF 'PINNED=""'  install.sh  || { echo 'install.sh is stamped';  exit 1; }
+          grep -qF "Pinned = ''" install.ps1 || { echo 'install.ps1 is stamped'; exit 1; }
+
       - name: install.sh
         if: runner.os != 'Windows'
         shell: bash

@@ -1,7 +1,7 @@
 #!/bin/sh
 # helikopter installer
 #
-#   curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh
+#   curl -fsSL https://hammadsaedi.github.io/helikopter/install.sh | sh
 #
 # Environment:
 #   HELIKOPTER_VERSION   tag to install (default: latest release)
@@ -10,7 +10,12 @@
 set -eu
 
 REPO="hammadsaedi/helikopter"
+SITE="https://${REPO%%/*}.github.io/${REPO#*/}"
 BIN="helikopter"
+
+# Stamped with the tag in the copy attached to each release; empty on main,
+# where the default is the latest release.
+PINNED=""
 
 say()  { printf '%s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -30,7 +35,7 @@ detect_platform() {
     freebsd) os=freebsd ;;
     msys*|mingw*|cygwin*)
       die "on Windows use PowerShell:
-  irm https://raw.githubusercontent.com/$REPO/main/install.ps1 | iex" ;;
+  irm $SITE/install.ps1 | iex" ;;
     *) die "unsupported OS: $os" ;;
   esac
 
@@ -70,7 +75,7 @@ main() {
 
   detect_platform
 
-  version="${HELIKOPTER_VERSION:-}"
+  version="${HELIKOPTER_VERSION:-$PINNED}"
   if [ -z "$version" ]; then
     version=$(latest_version) || die "could not determine the latest version"
   fi
