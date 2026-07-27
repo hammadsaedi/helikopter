@@ -111,3 +111,72 @@ func TestDispatchRejectsUnknownCommands(t *testing.T) {
 		}
 	}
 }
+
+// "flag provided but not defined" is accurate and useless. These are the
+// mistakes people actually make, so each should say where the thing went.
+func TestUpdateFlagMistakesAreExplained(t *testing.T) {
+	handled, err := dispatch([]string{"update", "--check-update"})
+	if !handled || err == nil {
+		t.Fatal("an unknown flag on update should be an error")
+	}
+	msg := err.Error()
+	if !contains(msg, "Did you mean") || !contains(msg, "helikopter update --check") {
+		t.Errorf("a near miss for --check should be suggested:\n%s", msg)
+	}
+	// Reported once. The flag set is silenced precisely so it is not printed
+	// by both the parser and main.
+	if n := countOccurrences(msg, "usage: helikopter update"); n != 1 {
+		t.Errorf("usage appears %d times, want 1:\n%s", n, msg)
+	}
+
+	// A flag that is not a near miss still gets the usage, without a bogus
+	// suggestion.
+	_, err = dispatch([]string{"update", "--bogus"})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if contains(err.Error(), "Did you mean") {
+		t.Errorf("--bogus is not a near miss for --check:\n%s", err)
+	}
+}
+
+func TestHelpOnUpdateIsNotAnError(t *testing.T) {
+	handled, err := dispatch([]string{"update", "--help"})
+	if !handled {
+		t.Fatal("update --help should be handled")
+	}
+	if err != nil {
+		t.Errorf("asking for help is not a failure: %v", err)
+	}
+}
+
+// The check used to be a top-level flag and is now behind the command, so the
+// flag spelling has to point at where it went.
+func TestUpdateAsAFlagPointsAtTheCommand(t *testing.T) {
+	for _, arg := range []string{"--check-update", "-check-update", "--update"} {
+		handled, err := dispatch([]string{arg})
+		if !handled || err == nil {
+			t.Fatalf("%s should be reported, got handled=%v err=%v", arg, handled, err)
+		}
+		if !contains(err.Error(), "helikopter update") {
+			t.Errorf("%s should point at the command:\n%s", arg, err)
+		}
+	}
+
+	// Real flags must still fall through to the animation.
+	for _, arg := range []string{"--theme", "--idle", "-s", "--no-awake"} {
+		if handled, _ := dispatch([]string{arg}); handled {
+			t.Errorf("%s should fall through to the animation", arg)
+		}
+	}
+}
+
+func countOccurrences(hay, needle string) int {
+	n := 0
+	for i := 0; i+len(needle) <= len(hay); i++ {
+		if hay[i:i+len(needle)] == needle {
+			n++
+		}
+	}
+	return n
+}

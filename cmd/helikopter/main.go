@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -188,6 +189,16 @@ keys:
 // is the animation and its options.
 func dispatch(args []string) (handled bool, err error) {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		// The check lives behind the update command. Someone reaching for it
+		// as a flag gets told where it went rather than the flag package's
+		// "not defined", which is true but no help at all.
+		for _, a := range args {
+			if n := strings.TrimLeft(a, "-"); n == "check-update" || n == "update" {
+				return true, fmt.Errorf("there is no --%s flag; it is a command:\n\n"+
+					"  helikopter update --check    say whether an update exists\n"+
+					"  helikopter update            install it", n)
+			}
+		}
 		return false, nil
 	}
 
@@ -195,17 +206,19 @@ func dispatch(args []string) (handled bool, err error) {
 	case "update":
 		fs := flag.NewFlagSet("helikopter update", flag.ContinueOnError)
 		check := fs.Bool("check", false, "report whether an update exists, and change nothing")
-		fs.Usage = func() {
-			fmt.Fprint(fs.Output(), `usage: helikopter update [--check]
+		// The flag set is silenced so the mistake is reported once, by us,
+		// with a suggestion attached. Left to itself it prints the error and
+		// the usage, and then main prints the returned error again.
+		fs.SetOutput(io.Discard)
+		fs.Usage = func() {}
 
-  Replaces this binary with the latest release, after verifying its checksum
-  and confirming it runs. Nothing is changed if any of that fails.
-
-  --check   say whether an update exists, and change nothing
-`)
-		}
 		if err := fs.Parse(args[1:]); err != nil {
-			return true, err
+			// Asking for help is not a failure.
+			if errors.Is(err, flag.ErrHelp) {
+				fmt.Print(updateHelp)
+				return true, nil
+			}
+			return true, fmt.Errorf("%w\n%s", err, updateUsage(args[1:]))
 		}
 		if *check {
 			return true, checkUpdate()
@@ -226,6 +239,30 @@ func dispatch(args []string) (handled bool, err error) {
 	}
 
 	return true, fmt.Errorf("unknown command %q\n\nTry: helikopter update | version | themes | help", args[0])
+}
+
+const updateHelp = `usage: helikopter update [--check]
+
+  Replaces this binary with the latest release, after verifying its checksum
+  and confirming it runs. Nothing is changed if any of that fails.
+
+  --check   say whether an update exists, and change nothing
+`
+
+// updateUsage is the help text, with a suggestion first when the mistake looks
+// like a near miss for --check. "flag provided but not defined" is accurate and
+// unhelpful; --check-update in particular is an easy thing to reach for.
+func updateUsage(args []string) string {
+	for _, a := range args {
+		name := strings.TrimLeft(a, "-")
+		if i := strings.IndexByte(name, '='); i >= 0 {
+			name = name[:i]
+		}
+		if name != "check" && strings.Contains(name, "check") {
+			return "\nDid you mean:  helikopter update --check\n\n" + updateHelp
+		}
+	}
+	return "\n" + updateHelp
 }
 
 func listThemes() {
