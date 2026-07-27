@@ -1,20 +1,20 @@
 {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "A helicopter flies in your terminal, and keeps your machine awake while it does.",
     "homepage": "https://github.com/hammadsaedi/helikopter",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/hammadsaedi/helikopter/releases/download/v1.0.0/helikopter_1.0.0_windows_amd64.zip",
-            "hash": "c11407951f2774570cc15b1d4628a2af24e39b18796467e5015249b99914246c"
+            "url": "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.0/helikopter_1.1.0_windows_amd64.zip",
+            "hash": "880e5e35dfea2b35b1ff9abbd3a781bfe9e107c24282e47d04d11bee34053d99"
         },
         "arm64": {
-            "url": "https://github.com/hammadsaedi/helikopter/releases/download/v1.0.0/helikopter_1.0.0_windows_arm64.zip",
-            "hash": "a37cdb88beabd8fd77b278b235fe834caf2a8e0aec77aaf819158bdb09a641fb"
+            "url": "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.0/helikopter_1.1.0_windows_arm64.zip",
+            "hash": "2b71da50fa4ec26b1724b8792724171d184286889810057ce7eeccffd776afca"
         },
         "32bit": {
-            "url": "https://github.com/hammadsaedi/helikopter/releases/download/v1.0.0/helikopter_1.0.0_windows_386.zip",
-            "hash": "f00e4cb7a2518d483c7341c839df9f98045268c7d1fe6175b9d4bb88284314b7"
+            "url": "https://github.com/hammadsaedi/helikopter/releases/download/v1.1.0/helikopter_1.1.0_windows_386.zip",
+            "hash": "b656c0a57c0ae45dfbf61033d8f130dd36ac003a5c36b7e3dfd3b3e8f5770b86"
         }
     },
     "bin": "helikopter.exe",
