@@ -180,3 +180,43 @@ func countOccurrences(hay, needle string) int {
 	}
 	return n
 }
+
+// The hint has to lead with the command that does the thing. Telling someone
+// an update exists and then listing every route except `helikopter update` —
+// while the program is running and already knows — is absurd.
+func TestUpdateHintLeadsWithTheCommand(t *testing.T) {
+	h := updateHint()
+	cmd := indexOf(h, "helikopter update")
+	if cmd < 0 {
+		t.Fatalf("the hint must offer helikopter update:\n%s", h)
+	}
+	for _, other := range []string{"install.sh", "install.ps1", "go install"} {
+		if i := indexOf(h, other); i >= 0 && i < cmd {
+			t.Errorf("%q is suggested before `helikopter update`:\n%s", other, h)
+		}
+	}
+}
+
+// Suggesting a channel that is not published sends people to an error. This
+// one cost a real "No available formula with the name helikopter".
+func TestUpdateHintOffersOnlyWorkingRoutes(t *testing.T) {
+	h := updateHint()
+	for _, unpublished := range []string{"brew", "scoop", "winget"} {
+		if contains(h, unpublished) {
+			t.Errorf("%q is not published yet, so the hint must not suggest it:\n%s",
+				unpublished, h)
+		}
+	}
+	if !contains(h, "go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest") {
+		t.Errorf("go install always works and should always be offered:\n%s", h)
+	}
+}
+
+func indexOf(hay, needle string) int {
+	for i := 0; i+len(needle) <= len(hay); i++ {
+		if hay[i:i+len(needle)] == needle {
+			return i
+		}
+	}
+	return -1
+}

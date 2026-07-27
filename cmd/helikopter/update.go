@@ -74,19 +74,26 @@ func latestVersion() (string, error) {
 	return body.TagName, nil
 }
 
-// updateHint gives the command that matches how this copy was most likely
-// installed, since telling someone to re-run an installer they never used is
-// not helpful.
+// updateHint lists the ways to actually get the new version.
+//
+// It leads with `helikopter update`, which is the whole reason that command
+// exists — suggesting anything else first, when the program is already running
+// and already knows there is an update, is absurd.
+//
+// Every route here has to work. Homebrew, Scoop and winget are prepared under
+// packaging/ but not published, and suggesting `brew upgrade helikopter` to
+// someone whose only fault was following the advice gets them
+// "No available formula". Add each one back here when it is genuinely
+// installable.
 func updateHint() string {
 	var b strings.Builder
-	b.WriteString("Update with whichever you used to install:\n\n")
+	b.WriteString("Update with:\n\n")
+	b.WriteString("  helikopter update\n\n")
+	b.WriteString("or, if this copy came from somewhere else:\n\n")
 	if runtime.GOOS == "windows" {
 		b.WriteString("  irm https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.ps1 | iex\n")
-		b.WriteString("  scoop update helikopter\n")
-		b.WriteString("  winget upgrade hammadsaedi.helikopter\n")
 	} else {
 		b.WriteString("  curl -fsSL https://raw.githubusercontent.com/hammadsaedi/helikopter/main/install.sh | sh\n")
-		b.WriteString("  brew upgrade helikopter\n")
 	}
 	b.WriteString("  go install github.com/hammadsaedi/helikopter/cmd/helikopter@latest\n")
 	return b.String()
