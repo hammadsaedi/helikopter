@@ -5,21 +5,47 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'tag to build (must already exist)'
+      version:
+        description: 'Version to release, e.g. v1.1.2 (the tag is created for you)'
         required: true
 
 permissions:
   contents: write
 
 jobs:
+  # Creating the tag from the UI runs exactly the same script as `make release`
+  # does locally, so a release cut from a browser cannot skip a check that one
+  # cut from a terminal would have failed.
+  tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: cut the tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION="${{ inputs.version }}" sh scripts/release.sh
+
   release:
+    needs: [tag]
+    # Runs for a pushed tag too, where the job above is skipped rather than run.
+    if: ${{ always() && (needs.tag.result == 'success' || needs.tag.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.version || github.ref_name }}
 
       - uses: actions/setup-go@v5
         with:
@@ -29,7 +55,7 @@ jobs:
       - name: build all targets
         run: |
           set -eu
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          TAG="${{ inputs.version || github.ref_name }}"
           VERSION="${TAG#v}"
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -75,7 +101,7 @@ jobs:
       - name: publish
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ inputs.version || github.ref_name }}
           files: dist/*
           generate_release_notes: true
 
@@ -95,13 +121,13 @@ jobs:
       - name: regenerate manifests
         run: |
           set -eu
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          TAG="${{ inputs.version || github.ref_name }}"
           packaging/bump.sh "$TAG"
 
       - name: commit if anything changed
         run: |
           set -eu
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          TAG="${{ inputs.version || github.ref_name }}"
           if git diff --quiet -- packaging; then
             echo "manifests already match $TAG"
             exit 0
