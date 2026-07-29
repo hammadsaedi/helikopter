@@ -3,6 +3,7 @@ package theme
 import (
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -74,6 +75,12 @@ func DetectMode(isTTY bool) Mode {
 		return ModeTrue
 	}
 	if os.Getenv("WT_SESSION") != "" { // Windows Terminal
+		return ModeTrue
+	}
+	// Modern Windows consoles (PowerShell, cmd on Windows 10 1607+) support
+	// 24-bit colour via Virtual Terminal Sequences, but do not advertise it
+	// through COLORTERM, TERM, or WT_SESSION the way Unix terminals do.
+	if runtime.GOOS == "windows" && isTTY {
 		return ModeTrue
 	}
 	if strings.Contains(term, "256") {
