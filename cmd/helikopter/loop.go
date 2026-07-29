@@ -45,11 +45,15 @@ type state struct {
 	mode   theme.Mode
 	style  render.Style
 
-	paused bool
-	idle   bool
-	muted  bool
-	super  int
-	size   float64
+	// Pausing and idling freeze exactly the same things, so they are one state
+	// and not two flags that can disagree. Two flags meant `space` could not
+	// resume what `i` had frozen, and neither could resume the automatic idle.
+	frozen bool
+	why    string // "paused" or "idle", for the status line only
+
+	muted bool
+	super int
+	size  float64
 
 	// clock is flight time: it advances only while the helicopter is actually
 	// flying, and is what both the animation and the status line are driven
@@ -206,8 +210,8 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 
 		case <-idleDeadline:
 			idleDeadline = nil
-			if !s.idle {
-				s.idle = true
+			if !s.frozen {
+				s.freeze("idle")
 				sync()
 			}
 
@@ -227,7 +231,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 			case 'q', 'Q', 3, 4: // q, Ctrl-C, Ctrl-D
 				return nil
 			case ' ':
-				s.paused = !s.paused
+				s.toggleFreeze("paused")
 				sync()
 			case 't', 'T':
 				s.nextTheme(1)
@@ -235,7 +239,7 @@ func (s *state) runAnimated(sig <-chan os.Signal) error {
 				s.muted = !s.muted
 				s.syncAudio()
 			case 'i', 'I':
-				s.idle = !s.idle
+				s.toggleFreeze("idle")
 				sync()
 			case 'w', 'W':
 				s.toggleAwake()
@@ -360,7 +364,31 @@ func (s *state) releaseAwake() {
 
 // suspended reports whether the animation is frozen, whether by pause or by
 // idle. Both stop the clock, the redraw and the sound.
-func (s *state) suspended() bool { return s.paused || s.idle }
+func (s *state) suspended() bool { return s.frozen }
+
+// freeze stops the animation, recording what stopped it. Already frozen for
+// another reason, the reason is replaced: the state is one thing, so the last
+// key pressed is the one that gets to name it.
+func (s *state) freeze(why string) {
+	s.frozen = true
+	s.why = why
+}
+
+// thaw resumes, whatever froze it. Any of the keys that can freeze can also
+// resume, which is the whole point of there being a single state.
+func (s *state) thaw() {
+	s.frozen = false
+	s.why = ""
+}
+
+// toggleFreeze flips the state, naming it why when it freezes.
+func (s *state) toggleFreeze(why string) {
+	if s.frozen {
+		s.thaw()
+		return
+	}
+	s.freeze(why)
+}
 
 // audioState decides whether sound should be running, and what the status
 // line should call it. Kept separate from the player so the rules can be
@@ -537,11 +565,8 @@ func (s *state) statusBar(elapsed time.Duration) [][]byte {
 func (s *state) infoSegs(elapsed time.Duration) [][]seg {
 	th := s.theme
 	stateWord := "flying"
-	switch {
-	case s.idle:
-		stateWord = "idle"
-	case s.paused:
-		stateWord = "paused"
+	if s.frozen {
+		stateWord = s.why
 	}
 	name := th.UIKey
 	if s.style == render.StyleASCII {

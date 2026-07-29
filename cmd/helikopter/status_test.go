@@ -32,16 +32,19 @@ func TestStatusBarNeverExceedsTerminalWidth(t *testing.T) {
 		for _, note := range notes {
 			for _, d := range durations {
 				for _, mode := range []theme.Mode{theme.ModeTrue, theme.Mode256, theme.ModeNone} {
-					for _, flag := range []struct{ idle, paused bool }{
-						{false, false}, {true, false}, {false, true},
+					for _, st := range []struct {
+						frozen bool
+						why    string
+					}{
+						{false, ""}, {true, "idle"}, {true, "paused"},
 					} {
 						s := &state{
 							theme:     th,
 							mode:      mode,
 							awakeNote: note,
 							soundNote: note,
-							idle:      flag.idle,
-							paused:    flag.paused,
+							frozen:    st.frozen,
+							why:       st.why,
 							screen:    render.NewScreen(cols, 10, render.StyleHalfBlock, mode),
 						}
 						// NewScreen enforces a floor, so measure against the
@@ -49,8 +52,8 @@ func TestStatusBarNeverExceedsTerminalWidth(t *testing.T) {
 						max := s.screen.Cols - 1
 						for i, line := range s.statusBar(d) {
 							if got := visibleWidth(line); got > max {
-								t.Fatalf("cols=%d row=%d note=%q idle=%v paused=%v: %d wide, max %d",
-									cols, i, note, flag.idle, flag.paused, got, max)
+								t.Fatalf("cols=%d row=%d note=%q frozen=%v why=%q: %d wide, max %d",
+									cols, i, note, st.frozen, st.why, got, max)
 							}
 						}
 					}
@@ -142,20 +145,68 @@ func TestAudioStateRules(t *testing.T) {
 	}
 }
 
-func TestSuspendedCoversPauseAndIdle(t *testing.T) {
+// Pause and idle freeze the same things, so either key must resume whatever
+// the other one stopped. They used to be separate flags, and `suspended` was
+// the OR of the two: pressing `i` then `space` twice left it frozen with no
+// way back except `i`, and nothing on screen said so.
+func TestEitherKeyResumesWhateverFroze(t *testing.T) {
+	press := map[byte]string{' ': "paused", 'i': "idle"}
+
 	for _, c := range []struct {
-		paused, idle, want bool
+		name string
+		keys string
+		want bool
 	}{
-		{false, false, false},
-		{true, false, true},
-		{false, true, true},
-		{true, true, true},
+		{"space pauses", " ", true},
+		{"space then space resumes", "  ", false},
+		{"i idles", "i", true},
+		{"i then i resumes", "ii", false},
+		{"space resumes what i froze", "i ", false},
+		{"i resumes what space froze", " i", false},
+		{"and back again", "i  ", true},
 	} {
-		s := &state{paused: c.paused, idle: c.idle}
-		if got := s.suspended(); got != c.want {
-			t.Errorf("paused=%v idle=%v: suspended()=%v, want %v",
-				c.paused, c.idle, got, c.want)
+		s := &state{}
+		for i := 0; i < len(c.keys); i++ {
+			s.toggleFreeze(press[c.keys[i]])
 		}
+		if got := s.suspended(); got != c.want {
+			t.Errorf("%s: keys %q left suspended()=%v, want %v",
+				c.name, c.keys, got, c.want)
+		}
+	}
+}
+
+// The automatic idle is the worst version of the same bug: nobody chose it, so
+// the obvious key to wake it is space, and space could never do it.
+func TestSpaceResumesTheAutomaticIdle(t *testing.T) {
+	s := &state{}
+	s.freeze("idle") // what the idleAfter deadline does
+	if !s.suspended() {
+		t.Fatal("the idle deadline should have frozen it")
+	}
+	s.toggleFreeze("paused") // the user presses space
+	if s.suspended() {
+		t.Error("space did not resume an automatic idle")
+	}
+}
+
+// Frozen, the status line says which key did it; flying, it says neither.
+func TestTheStatusWordFollowsTheLastKey(t *testing.T) {
+	s := &state{}
+	if s.why != "" {
+		t.Errorf("a flying helicopter has no reason to be stopped: %q", s.why)
+	}
+	s.freeze("idle")
+	if s.why != "idle" {
+		t.Errorf("why=%q, want idle", s.why)
+	}
+	s.freeze("paused") // frozen already: the last key names it
+	if s.why != "paused" {
+		t.Errorf("why=%q, want paused", s.why)
+	}
+	s.thaw()
+	if s.why != "" {
+		t.Errorf("why=%q after resuming, want empty", s.why)
 	}
 }
 
@@ -188,7 +239,7 @@ func TestStatusTimeIsFlightTimeNotWallClock(t *testing.T) {
 	// is the only input, so a paused state redraws the same time however long
 	// the pause lasted.
 	paused := &state{
-		theme: th, mode: theme.ModeNone, paused: true,
+		theme: th, mode: theme.ModeNone, frozen: true, why: "paused",
 		awakeNote: "on", soundNote: "paused", clock: 135,
 		screen: render.NewScreen(140, 24, render.StyleHalfBlock, theme.ModeNone),
 	}
